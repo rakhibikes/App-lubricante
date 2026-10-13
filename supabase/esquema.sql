@@ -41,6 +41,11 @@ create policy "recomendaciones propias" on public.recomendaciones
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
+-- Permisos de la API para usuarios con sesión (necesarios si el proyecto no expone tablas
+-- automáticamente). Las reglas de arriba siguen limitando a cada persona a lo suyo.
+grant select, insert, update, delete on public.perfiles to authenticated;
+grant select, insert, update, delete on public.recomendaciones to authenticated;
+
 -- Vista para ti: un resumen por persona, para revisar o exportar a CSV desde el panel.
 create or replace view public.resumen_usuarios
 with (security_invoker = true) as
