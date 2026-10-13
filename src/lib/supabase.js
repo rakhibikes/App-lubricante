@@ -1,8 +1,10 @@
 // Cliente de Supabase. Si faltan las variables de entorno, la app funciona solo como invitado.
 import { createClient } from '@supabase/supabase-js'
 
-const url = import.meta.env.VITE_SUPABASE_URL
-const key = import.meta.env.VITE_SUPABASE_ANON_KEY
+// La clave publishable está hecha para ir en el navegador; la seguridad la dan las reglas RLS.
+// Las variables de entorno, si existen, tienen prioridad (útil para un proyecto de pruebas).
+const url = import.meta.env.VITE_SUPABASE_URL || 'https://muujzcczvaldqyqcphbp.supabase.co'
+const key = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_OhS4FrhUR7QmV0NuazIFTg_ypqSczuk'
 
 export const supabase = url && key ? createClient(url, key) : null
 export const hayCuentas = Boolean(supabase)
