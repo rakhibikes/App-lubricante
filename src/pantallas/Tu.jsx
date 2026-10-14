@@ -66,6 +66,7 @@ export default function Tu({ perfil, usuario, onEditar, onBorrar }) {
           )}
         </div>
       )}
+      <a className="peq muted" href="./privacidad.html" style={{ textAlign: 'center', padding: 8 }}>Política de privacidad</a>
     </main>
   )
 }
