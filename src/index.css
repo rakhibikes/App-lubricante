@@ -242,3 +242,69 @@ input[type="range"] { width: 100%; height: 28px; margin: 0; accent-color: var(--
 @media (min-width: 420px) {
   .hero h1 { font-size: 40px; }
 }
+
+.card.destacada { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Chips de opción (formularios y selector de bici) */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip-op {
+  border: 1.5px solid var(--line); background: var(--card); color: var(--text); border-radius: 999px;
+  min-height: 42px; padding: 0 16px; font-size: 15px; font-weight: 600; display: inline-flex; align-items: center; text-decoration: none;
+}
+.chip-op[aria-checked="true"], .chip-op[aria-selected="true"] { border-color: var(--accent); background: var(--tint); color: var(--tint-text); }
+select.buscador { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 22px) 22px, calc(100% - 16px) 22px; background-size: 6px 6px; background-repeat: no-repeat; padding-right: 40px; }
+
+/* Salud de la cadena */
+.tarea { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.tarea:last-child { border-bottom: 0; }
+.tarea.hecha { padding: 9px 0; }
+.anillo { width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid var(--ring); flex: none; display: flex; align-items: center; justify-content: center; color: var(--text); }
+.anillo.lleno { border: 0; background: var(--pill); }
+.barra-lub { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin: -4px 0 8px 46px; }
+.barra-lub > div { height: 100%; border-radius: 3px; }
+.bateria { width: 16px; height: 46px; border-radius: 7px; border: 2px solid #fff; display: flex; align-items: flex-end; padding: 2px; flex: none; }
+.bateria > div { width: 100%; border-radius: 4px; background: #fff; }
+.fab {
+  position: absolute; left: 50%; bottom: 0; margin-left: -30px; width: 60px; height: 60px; border-radius: 50%;
+  border: 4px solid var(--bg); background: var(--btn-bg); color: var(--btn-text); display: flex; align-items: center; justify-content: center;
+}
+.acciones { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px; }
+.acciones .btn { min-height: 48px; font-size: 15px; }
+.acciones .btn:last-child { grid-column: span 2; }
+
+/* Formularios */
+label.col { display: flex; flex-direction: column; }
+.campo-inline { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+/* Impresión (plan de carrera en PDF) */
+.solo-impresion { display: none; }
+@media print {
+  @page { margin: 14mm; }
+  body { background: #fff !important; color: #111 !important; }
+  .nav, .no-imprimir, .fab { display: none !important; }
+  .app > *:not(.solo-impresion) { display: none !important; }
+  .solo-impresion { display: block !important; color: #111; font-size: 12px; }
+  .solo-impresion h1 { font-size: 22px; margin: 0 0 4px; }
+  .solo-impresion h2 { font-size: 14px; margin: 14px 0 6px; }
+  .solo-impresion table { width: 100%; border-collapse: collapse; }
+  .solo-impresion th, .solo-impresion td { text-align: left; padding: 4px 6px; border-bottom: 1px solid #ddd; font-size: 11px; }
+  .solo-impresion svg { max-width: 100%; }
+}
+
+/* Planificador */
+.mapa { height: 260px; border-radius: 20px; overflow: hidden; background: var(--pill); z-index: 0; }
+.leyenda-cond { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--muted); }
+.leyenda-cond span { display: inline-flex; align-items: center; gap: 6px; }
+.leyenda-cond i { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
+.tramo { display: grid; grid-template-columns: 12px 96px minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.tramo .buscador { height: 46px; padding: 0 14px; }
+.estrategia { border: 1.5px solid var(--line); border-radius: 22px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.buscador.archivo { padding: 11px 14px; font-size: 14px; }
+.numero { font-size: 24px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.leaflet-container { font-family: inherit; }
+
+/* Panel de catálogo */
+.tabla input.celda { width: 100%; min-width: 70px; height: 38px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--card); padding: 0 10px; font-variant-numeric: tabular-nums; }
+.tabla input.celda:focus { border-color: var(--accent); outline: none; }
+.pestanas { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.cambio-ganador { color: var(--tint-text); font-weight: 700; }

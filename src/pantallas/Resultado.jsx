@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { NOMBRE_TIPO, NOMBRE_SEGMENTO, SEGMENTOS, etiquetaSolidez } from '../lib/motor.js'
+import { NOMBRE_TIPO, NOMBRE_SEGMENTO, SEGMENTOS, PARAMS, etiquetaSolidez } from '../lib/motor.js'
 import { km, clpR, n0, pct } from '../lib/formato.js'
 import { Flecha } from '../ui/iconos.jsx'
 
@@ -13,7 +13,7 @@ export default function Resultado({ perfil, resultado, saca, setSaca, onImportan
   const [g, s2, s3] = ranking
   const kmAnual = perfil.kmSemana * 52
   const semanas = g.auto / perfil.kmSemana
-  const empate = s2 && g.puntaje - s2.puntaje < 3
+  const empate = s2 && g.puntaje - s2.puntaje < (PARAMS.EMPATE ?? 3)
   const estimado = g.wEstimado || g.costoEstimado
   const imp = perfil.importancias || SEGMENTOS[perfil.segmento].imp
   const masBarato = empate ? [g, s2].sort((a, b) => a.costo - b.costo)[0] : null
@@ -68,6 +68,14 @@ export default function Resultado({ perfil, resultado, saca, setSaca, onImportan
         <div className="col">
           <h2>{perfil.actual ? `${perfil.actual.nombre} contra ${g.producto.nombre}` : 'Compáralo con el tuyo'}</h2>
           <span className="peq muted">Cadenas, pesos y horas al año, con tus km</span>
+        </div>
+        <span className="circulo claro" style={{ background: 'var(--pill)' }}><Flecha /></span>
+      </a>
+
+      <a className={`card entre${perfil.compite ? ' destacada' : ''}`} href="#/competicion" style={{ textDecoration: 'none' }}>
+        <div className="col">
+          <h2>Modo competición</h2>
+          <span className="peq muted">Eficiencia contra duración: segundos por carrera y costo por vatio</span>
         </div>
         <span className="circulo claro" style={{ background: 'var(--pill)' }}><Flecha /></span>
       </a>

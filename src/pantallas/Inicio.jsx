@@ -64,12 +64,12 @@ export default function Inicio({ perfil, resultado, usuario }) {
         <a className="mini" href="#/cadena" style={{ textDecoration: 'none' }}>
           <span className="circulo claro" style={{ background: 'var(--tint)', color: 'var(--tint-text)' }}><Cadena /></span>
           <span className="nom">Salud de la cadena</span>
-          <span className="peq muted">Próximamente</span>
+          <span className="peq muted">Km, lubricación y cambio</span>
         </a>
         <a className="mini" href="#/carreras" style={{ textDecoration: 'none' }}>
           <span className="circulo claro" style={{ background: 'var(--tint)', color: 'var(--tint-text)' }}><Bandera /></span>
           <span className="nom">Planificador de carreras</span>
-          <span className="peq muted">Próximamente</span>
+          <span className="peq muted">Paradas y confiabilidad</span>
         </a>
       </div>
     </main>

@@ -1,8 +1,15 @@
-# App de lubricación (fase 1)
+# App de lubricación
 
 Recomendador de lubricante de cadena con datos de Zero Friction Cycling y precios en Chile.
-Fase 1: perfil de 8 preguntas, ranking AHP con solidez, comparación con el lubricante actual,
-modo invitado y cuenta opcional con Google. Claro u oscuro según el teléfono.
+
+- **Fase 1:** perfil de 8 preguntas, ranking AHP con solidez, comparación con el lubricante actual,
+  modo invitado y cuenta opcional con Google. Claro u oscuro según el teléfono.
+- **Fase 2:** modo competición (frente de Pareto), mi bicicleta y salud de la cadena (Weibull,
+  cambio óptimo, factor propio K), planificador de carrera (GPX, mapa, confiabilidad de misión,
+  PDF) y panel de catálogo y parámetros para el administrador.
+
+Las secciones con cuenta se pueden probar sin iniciar sesión agregando `?demo` a la dirección
+(por ejemplo `https://…/?demo#/cadena`); en ese modo los datos quedan solo en el navegador.
 
 ## Correr en tu computador
 
@@ -20,7 +27,12 @@ npm run build      # genera la carpeta dist/
 | `src/lib/motor.js` | Recomendador AHP, solidez (Monte Carlo 1.500), comparación anual |
 | `src/pantallas/` | Bienvenida, Perfil, Resultado, Comparar, Tú |
 | `src/lib/supabase.js` | Login con Google y guardado (solo si hay variables de entorno) |
-| `supabase/esquema.sql` | Tablas `perfiles` y `recomendaciones` con seguridad por fila |
+| `supabase/esquema.sql` | Fase 1: tablas `perfiles` y `recomendaciones` con seguridad por fila |
+| `supabase/esquema-fase2.sql` | Fase 2: bicicletas, cadenas, eventos, carreras, catálogo versionado, búsquedas, administradores y bucket `gpx` |
+| `src/lib/cadena.js` | Salud de la cadena: exposición, Weibull β = 3, cambio óptimo por r, vida residual, factor K |
+| `src/lib/carrera.js` | Planificador: confiabilidad β = 4, re-aplicación al 98 %, paradas, desgaste |
+| `src/lib/competicion.js` | Frente de Pareto, rodilla, segundos por carrera y costo por vatio |
+| `src/lib/datos.js` | Datos con cuenta (Supabase) o modo demo (navegador) |
 
 Para cambiar precios o productos, edita `src/data/catalogo.json` y vuelve a publicar.
 

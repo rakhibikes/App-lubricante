@@ -1,13 +1,31 @@
 // Motor de cálculo: recomendador AHP con precios en CLP, solidez y comparación anual.
 // Port directo de los análisis en Python (a6_ahp_chile.py y a7_clp_comparar.py).
-import catalogo from '../data/catalogo.json'
+import catalogoBase from '../data/catalogo.json'
 
-const P = catalogo.params
-export const PRODUCTOS = catalogo.productos
-export const TIPICOS = catalogo.tipicos
-export const SIN_ENSAYO = catalogo.sin_ensayo
-export const SEGMENTOS = P.SEG
-export const PARAMS = P
+// El catálogo puede reemplazarse en caliente por la versión publicada en Supabase (módulo 8).
+// Los export let son enlaces vivos: quien los importa ve siempre la versión vigente.
+let P = catalogoBase.params
+export let CATALOGO = catalogoBase
+export let PRODUCTOS = catalogoBase.productos
+export let TIPICOS = catalogoBase.tipicos
+export let SIN_ENSAYO = catalogoBase.sin_ensayo
+export let SEGMENTOS = P.SEG
+export let PARAMS = P
+export let GRUPOS = catalogoBase.grupos
+
+export function setCatalogo(c) {
+  if (!c || !Array.isArray(c.productos) || !c.params) return false
+  CATALOGO = c
+  P = { ...catalogoBase.params, ...c.params }
+  PRODUCTOS = c.productos
+  TIPICOS = c.tipicos || catalogoBase.tipicos
+  SIN_ENSAYO = c.sin_ensayo || catalogoBase.sin_ensayo
+  SEGMENTOS = P.SEG
+  PARAMS = P
+  GRUPOS = c.grupos || catalogoBase.grupos
+  return true
+}
+export const catalogoInicial = () => catalogoBase
 
 const BLOQUE = { limpio: 'b1', polvo: 'b2', humedo: 'b4', extremo: 'b6' }
 const SALCOL = { ruta: 'sal_ruta', gravel: 'sal_gravel', extremo: 'sal_extremo' }
@@ -41,11 +59,11 @@ export function pesosAHP(imp) {
   return g.map((x) => x / s)
 }
 
-const PRECIO_ML = Object.fromEntries(PRODUCTOS.map((p) => [p.nombre, p.precio_ml]))
+const precioMl = (nombre) => PRODUCTOS.find((p) => p.nombre === nombre)?.precio_ml || 0
 
 function costoAplicacion(p) {
   if (p.precio_ml === 'hib') {
-    return (4 * PRECIO_ML['Silca Hot Melt'] + 4 * 1.5 * PRECIO_ML['Silca Super Secret Drip']) / 5
+    return (4 * precioMl('Silca Hot Melt') + 4 * 1.5 * precioMl('Silca Super Secret Drip')) / 5
   }
   return P.CONS[p.tipo === 'hibrido' ? 'inmersion' : p.tipo] * p.precio_ml
 }
@@ -127,7 +145,7 @@ export const NOMBRE_SEGMENTO = {
   'Ultra distancia': 'Ultra distancia',
 }
 
-export function recomendar(perfil, { sacaCadena, imp, iteraciones = 1500 } = {}) {
+export function recomendar(perfil, { sacaCadena, imp, iteraciones = P.ITER || 1500 } = {}) {
   const seg = SEGMENTOS[perfil.segmento]
   const mix = perfil.mezcla || seg.mix
   const ebike = perfil.electrica || seg.ebike
@@ -138,7 +156,7 @@ export function recomendar(perfil, { sacaCadena, imp, iteraciones = 1500 } = {})
   const r = rng(7)
   const gana = new Array(lista.length).fill(0)
   for (let k = 0; k < iteraciones; k++) {
-    const imp2 = pesosImp.map((x) => x * Math.exp(0.35 * normal(r)))
+    const imp2 = pesosImp.map((x) => x * Math.exp((P.SIGMA ?? 0.35) * normal(r)))
     const { s: s2 } = puntajes(lista, mix, ebike, imp2)
     let best = 0
     for (let j = 1; j < s2.length; j++) if (s2[j] > s2[best]) best = j
@@ -222,3 +240,24 @@ export function opcionesLubricante() {
   const sin = SIN_ENSAYO.map((p) => ({ id: `tip-${p.tipo}`, nombre: p.nombre, detalle: `Sin ensayo, se compara como ${NOMBRE_TIPO[p.tipo].toLowerCase()} típico` }))
   return [...chile, ...resto, ...sin]
 }
+
+// Tasa de desgaste ponderada (sin el factor K): vida hasta 0,5 % = 1000 / (K · tasa).
+export function tasa(p, mix) {
+  const tipico = String(p.id).startsWith('tip-')
+  let r = 0
+  for (const c of Object.keys(mix)) {
+    const v = tipico ? P.RATE[p.tipo][c] : nz(p[BLOQUE[c]], P.RATE[p.tipo][c])
+    r += mix[c] * Math.max(P.FLOOR, v)
+  }
+  return r
+}
+
+// Autonomía (km por aplicación) en una condición de carrera: 'ruta' | 'gravel' | 'extremo'.
+export function autonomiaCondicion(p, cond) {
+  const tipico = String(p.id).startsWith('tip-')
+  return tipico ? P.SAL[p.tipo][cond] : nz(p[SALCOL[cond]], P.SAL[p.tipo][cond])
+}
+
+export const segmentoPorTipoBici = (tipo) => ({
+  ruta: 'Ruta recreativo/fondo', gravel: 'Gravel/aventura', mtb: 'MTB/enduro', urbana: 'Urbano/commuter', electrica: 'e-MTB',
+}[tipo] || 'Gravel/aventura')

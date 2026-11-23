@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { registrarBusqueda } from '../lib/datos.js'
 import { comparar, buscarProducto, puntajeDe, opcionesLubricante, FORMA_LUBRICANTE, PARAMS } from '../lib/motor.js'
 import { km, clpR, n0, n1, n2 } from '../lib/formato.js'
 import { Atras } from '../ui/iconos.jsx'
@@ -9,6 +10,11 @@ function Selector({ onElegir }) {
   const opciones = useMemo(opcionesLubricante, [])
   const q = busca.trim().toLowerCase()
   const lista = q ? opciones.filter((o) => o.nombre.toLowerCase().includes(q)).slice(0, 30) : opciones.slice(0, 10)
+  useEffect(() => {
+    if (lista.length || q.length < 3) return undefined
+    const t = setTimeout(() => registrarBusqueda(q), 1500)
+    return () => clearTimeout(t)
+  }, [q, lista.length])
   if (forma) {
     return (
       <div className="card col" style={{ gap: 10 }}>

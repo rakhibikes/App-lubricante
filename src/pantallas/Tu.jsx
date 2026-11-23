@@ -8,7 +8,7 @@ const DISC = { ruta: 'Ruta', gravel: 'Gravel', mtb: 'MTB', ciudad: 'Ciudad' }
 const SACA = { si: 'Sí', no: 'No', no_se: 'No sé' }
 const COND = { limpio: 'Seco', polvo: 'Polvo', humedo: 'Lluvia o barro', extremo: 'Extremo' }
 
-export default function Tu({ perfil, usuario, onEditar, onBorrar }) {
+export default function Tu({ perfil, usuario, admin, onEditar, onBorrar }) {
   const [confirmar, setConfirmar] = useState(false)
   const filas = perfil ? [
     ['Tipo de ciclismo', NOMBRE_SEGMENTO[perfil.segmento]],
@@ -65,6 +65,11 @@ export default function Tu({ perfil, usuario, onEditar, onBorrar }) {
             </div>
           )}
         </div>
+      )}
+      {admin && (
+        <a className="card entre" href="#/catalogo" style={{ textDecoration: 'none' }}>
+          <div className="col"><h2>Catálogo y parámetros</h2><span className="peq muted">Solo tú: productos, precios, grupos y supuestos del modelo</span></div>
+        </a>
       )}
       <a className="peq muted" href="./privacidad.html" style={{ textAlign: 'center', padding: 8 }}>Política de privacidad</a>
     </main>
