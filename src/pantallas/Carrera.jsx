@@ -5,10 +5,12 @@ import { PRODUCTOS, buscarProducto, NOMBRE_TIPO } from '../lib/motor.js'
 import { simular, CONDICIONES, NO_RECARGABLE, reglaDeBolsillo, fraccionUmbral } from '../lib/carrera.js'
 import { estadoCadena, factorPropio, medicionesDe } from '../lib/cadena.js'
 import { leerGpx } from '../lib/gpx.js'
+import { sugerirTerreno } from '../lib/terreno.js'
 import { n0, n1, pct } from '../lib/formato.js'
 import { Atras } from '../ui/iconos.jsx'
 
 const COLOR = { seca: '#E2A877', gravel: '#C46A3C', barro: '#5A2A16' }
+const ORIGEN = { osm: 'OpenStreetMap', inferido: 'Deducido del tipo de camino', sin_dato: 'Sin dato: revísalo', manual: 'Elegido por ti' }
 const COLOR_ESTR = ['var(--accent)', 'var(--accent-deep)', 'var(--muted)']
 const COLOR_ESTR_HEX = ['#C46A3C', '#8E3F1E', '#5B6168']
 const idPorNombre = (n) => PRODUCTOS.find((p) => p.nombre === n)?.id
@@ -141,6 +143,8 @@ export default function Carrera({ carrera, perfil, datos, bd, onGuardada, onBorr
   const [aviso, setAviso] = useState('')
   const [guardando, setGuardando] = useState(false)
   const [nuevoControl, setNuevoControl] = useState('')
+  const [terreno, setTerreno] = useState(null) // { progreso } mientras consulta
+  const [avisoTerreno, setAvisoTerreno] = useState('')
   const set = (cambios) => setC((x) => ({ ...x, ...cambios }))
 
   const total = c.ruta?.total || c.tramos.reduce((a, t) => a + (Number(t.km) || 0), 0)
@@ -186,8 +190,27 @@ export default function Carrera({ carrera, perfil, datos, bd, onGuardada, onBorr
         controles: g.controles.map((x) => x.km),
         modo: g.controles.length ? 'control' : c.modo,
       })
-      setAviso(g.controles.length ? `Se leyeron ${g.controles.length} puntos de control del GPX.` : 'Toca el perfil donde cambia la condición para cortar la ruta en tramos.')
+      setAviso(g.controles.length ? `Se leyeron ${g.controles.length} puntos de control del GPX.` : '')
+      await sugerir(g.puntos, g.total, g.controles.length ? `Se leyeron ${g.controles.length} puntos de control del GPX. ` : '')
     } catch (err) { setError(err.message) }
+  }
+
+  // Terreno sugerido con los caminos de OpenStreetMap; cada tramo queda editable.
+  async function sugerir(puntos = c.ruta?.puntos, total = c.ruta?.total, prefijo = '') {
+    if (!puntos?.length) return
+    setTerreno({ progreso: 0 })
+    setError('')
+    try {
+      const r = await sugerirTerreno(puntos, total, { alProgresar: (p) => setTerreno({ progreso: p }) })
+      if (r.tramos.length) set({ tramos: r.tramos })
+      const { osm, inferido, sinDato } = r.resumen
+      if (prefijo) setAviso(prefijo.trim())
+      setAvisoTerreno(`Terreno sugerido: ${n0(osm)} km con la superficie de OpenStreetMap, ${n0(inferido)} km deducidos del tipo de camino${sinDato >= 1 ? ` y ${n0(sinDato)} km sin dato, que quedaron como gravel` : ''}. El barro depende del clima: márcalo tú si esperas lluvia. Revisa y cambia lo que no corresponda.`)
+    } catch (err) {
+      if (prefijo) setAviso(prefijo.trim())
+      setAvisoTerreno(`No se pudo consultar OpenStreetMap (${err.message}). Marca los tramos a mano tocando el perfil.`)
+    }
+    setTerreno(null)
   }
 
   const cortar = (k) => {
@@ -196,14 +219,14 @@ export default function Carrera({ carrera, perfil, datos, bd, onGuardada, onBorr
     for (const t of c.tramos) {
       const a = acc
       acc += Number(t.km) || 0
-      if (k > a + 0.5 && k < acc - 0.5) nuevos.push({ km: +(k - a).toFixed(1), cond: t.cond }, { km: +(acc - k).toFixed(1), cond: t.cond === 'barro' ? 'gravel' : t.cond === 'gravel' ? 'barro' : 'gravel' })
+      if (k > a + 0.5 && k < acc - 0.5) nuevos.push({ ...t, km: +(k - a).toFixed(1) }, { km: +(acc - k).toFixed(1), cond: t.cond === 'barro' ? 'gravel' : t.cond === 'gravel' ? 'barro' : 'gravel', fuente: 'manual' })
       else nuevos.push(t)
     }
     set({ tramos: nuevos })
   }
   const unirConSiguiente = (i) => {
     const t = [...c.tramos]
-    t[i] = { ...t[i], km: +((Number(t[i].km) || 0) + (Number(t[i + 1].km) || 0)).toFixed(1) }
+    t[i] = { ...t[i], km: +((Number(t[i].km) || 0) + (Number(t[i + 1].km) || 0)).toFixed(1), fuente: 'manual', detalle: undefined }
     t.splice(i + 1, 1)
     set({ tramos: t })
   }
@@ -279,23 +302,36 @@ export default function Carrera({ carrera, perfil, datos, bd, onGuardada, onBorr
       <div className="card col no-imprimir" style={{ gap: 10 }}>
         <div className="entre"><h2>Tramos</h2><span className={`peq ${tramosOk ? 'muted' : ''}`} style={tramosOk ? null : { color: 'var(--tint-text)' }}>{n1(sumaTramos)} de {n1(total)} km</span></div>
         {c.tramos.map((t, i) => (
-          <div key={i} className="tramo">
+          <div key={i} className="tramo-fila">
+          <div className="tramo">
             <span className="punto" style={{ background: COLOR[t.cond] }} aria-hidden="true" />
             <label className="oculto" htmlFor={`t-km-${i}`}>Km del tramo {i + 1}</label>
             <input id={`t-km-${i}`} className="buscador" type="number" inputMode="decimal" min="0" step="0.1" value={t.km}
               onChange={(e) => { const tr = [...c.tramos]; tr[i] = { ...t, km: e.target.value === '' ? '' : Number(e.target.value) }; set({ tramos: tr, ...(c.ruta ? {} : {}) }) }} />
             <label className="oculto" htmlFor={`t-c-${i}`}>Condición del tramo {i + 1}</label>
-            <select id={`t-c-${i}`} className="buscador" value={t.cond} onChange={(e) => { const tr = [...c.tramos]; tr[i] = { ...t, cond: e.target.value }; set({ tramos: tr }) }}>
+            <select id={`t-c-${i}`} className="buscador" value={t.cond} onChange={(e) => { const tr = [...c.tramos]; tr[i] = { ...t, cond: e.target.value, ...(t.fuente ? { fuente: 'manual', detalle: undefined } : {}) }; set({ tramos: tr }) }}>
               {Object.entries(CONDICIONES).map(([k, v]) => <option key={k} value={k}>{v.nombre}</option>)}
             </select>
             {c.tramos.length > 1 && (i < c.tramos.length - 1
               ? <button type="button" className="enlace peq" onClick={() => unirConSiguiente(i)} aria-label={`Unir el tramo ${i + 1} con el siguiente`}>Unir</button>
               : <button type="button" className="enlace peq" onClick={() => set({ tramos: c.tramos.slice(0, -1) })} aria-label="Quitar el último tramo">Quitar</button>)}
           </div>
+          {t.fuente && (
+            <span className={`origen ${t.fuente === 'sin_dato' ? 'revisar' : ''}`}>
+              {ORIGEN[t.fuente]}{t.detalle && t.fuente !== 'sin_dato' && t.fuente !== 'manual' ? ` · ${t.detalle}` : ''}
+            </span>
+          )}
+          </div>
         ))}
         {!c.ruta && <button type="button" className="btn btn-secundario" onClick={() => set({ tramos: [...c.tramos, { km: 50, cond: 'gravel' }] })}>Agregar tramo</button>}
         {c.ruta && !tramosOk && <button type="button" className="btn btn-secundario" onClick={() => { const tr = [...c.tramos]; tr[tr.length - 1] = { ...tr[tr.length - 1], km: +((Number(tr[tr.length - 1].km) || 0) + total - sumaTramos).toFixed(1) }; set({ tramos: tr }) }}>Ajustar el último tramo al total</button>}
-        {c.ruta && <p className="peq muted" style={{ margin: 0 }}>Toca el perfil de altura donde cambia la condición para cortar un tramo.</p>}
+        {avisoTerreno && <p className="aviso" role="status" style={{ margin: 0 }}>{avisoTerreno}</p>}
+        {c.ruta?.puntos?.length > 1 && (
+          <button type="button" className="btn btn-secundario" disabled={!!terreno} onClick={() => sugerir()}>
+            {terreno ? `Consultando OpenStreetMap… ${n0(terreno.progreso * 100)} %` : 'Sugerir terreno con OpenStreetMap'}
+          </button>
+        )}
+        {c.ruta && <p className="peq muted" style={{ margin: 0 }}>Toca el perfil de altura donde cambia la condición para cortar un tramo. Superficie de caminos: © colaboradores de OpenStreetMap.</p>}
       </div>
 
       <div className="card col no-imprimir" style={{ gap: 10 }}>
