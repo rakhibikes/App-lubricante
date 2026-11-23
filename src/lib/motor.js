@@ -2,30 +2,14 @@
 // Port directo de los análisis en Python (a6_ahp_chile.py y a7_clp_comparar.py).
 import catalogoBase from '../data/catalogo.json'
 
-// El catálogo puede reemplazarse en caliente por la versión publicada en Supabase (módulo 8).
-// Los export let son enlaces vivos: quien los importa ve siempre la versión vigente.
-let P = catalogoBase.params
-export let CATALOGO = catalogoBase
-export let PRODUCTOS = catalogoBase.productos
-export let TIPICOS = catalogoBase.tipicos
-export let SIN_ENSAYO = catalogoBase.sin_ensayo
-export let SEGMENTOS = P.SEG
-export let PARAMS = P
-export let GRUPOS = catalogoBase.grupos
-
-export function setCatalogo(c) {
-  if (!c || !Array.isArray(c.productos) || !c.params) return false
-  CATALOGO = c
-  P = { ...catalogoBase.params, ...c.params }
-  PRODUCTOS = c.productos
-  TIPICOS = c.tipicos || catalogoBase.tipicos
-  SIN_ENSAYO = c.sin_ensayo || catalogoBase.sin_ensayo
-  SEGMENTOS = P.SEG
-  PARAMS = P
-  GRUPOS = c.grupos || catalogoBase.grupos
-  return true
-}
-export const catalogoInicial = () => catalogoBase
+const P = catalogoBase.params
+export const CATALOGO = catalogoBase
+export const PRODUCTOS = catalogoBase.productos
+export const TIPICOS = catalogoBase.tipicos
+export const SIN_ENSAYO = catalogoBase.sin_ensayo
+export const SEGMENTOS = P.SEG
+export const PARAMS = P
+export const GRUPOS = catalogoBase.grupos
 
 const BLOQUE = { limpio: 'b1', polvo: 'b2', humedo: 'b4', extremo: 'b6' }
 const SALCOL = { ruta: 'sal_ruta', gravel: 'sal_gravel', extremo: 'sal_extremo' }

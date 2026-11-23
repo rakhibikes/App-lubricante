@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
-import { registrarBusqueda } from '../lib/datos.js'
+import { useMemo, useState } from 'react'
 import { asignarSegmento, SEGMENTOS, FORMA_LUBRICANTE, opcionesLubricante, buscarProducto } from '../lib/motor.js'
 import { Atras, Check } from '../ui/iconos.jsx'
 
@@ -86,11 +85,6 @@ export default function Perfil({ inicial, onListo, onSalir }) {
   const filtradas = busca.trim().length > 0
     ? opciones.filter((o) => o.nombre.toLowerCase().includes(busca.trim().toLowerCase())).slice(0, 30)
     : opciones.slice(0, 12)
-  useEffect(() => {
-    if (filtradas.length || busca.trim().length < 3) return undefined
-    const t = setTimeout(() => registrarBusqueda(busca.trim()), 1500)
-    return () => clearTimeout(t)
-  }, [busca, filtradas.length])
   const actualNombre = p.actual?.nombre
 
   return (

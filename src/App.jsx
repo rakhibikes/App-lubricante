@@ -1,13 +1,12 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, useDeferredValue } from 'react'
-import { recomendar, setCatalogo, CATALOGO } from './lib/motor.js'
+import { recomendar } from './lib/motor.js'
 import { leerLocal, guardarLocal } from './lib/almacen.js'
 import { supabase, sincronizar, leerPerfil } from './lib/supabase.js'
-import { fuente, enDemo, catalogoPublicado, esAdmin } from './lib/datos.js'
+import { fuente, enDemo } from './lib/datos.js'
 import Nav from './ui/Nav.jsx'
 import Perfil from './pantallas/Perfil.jsx'
 import Resultado from './pantallas/Resultado.jsx'
 import Comparar from './pantallas/Comparar.jsx'
-import Competicion from './pantallas/Competicion.jsx'
 import Tu from './pantallas/Tu.jsx'
 import Inicio, { Bienvenida } from './pantallas/Inicio.jsx'
 import CuentaRequerida, { BandaDemo } from './pantallas/Cuenta.jsx'
@@ -15,18 +14,15 @@ import Cadena from './pantallas/Cadena.jsx'
 import Bici from './pantallas/Bici.jsx'
 import Carreras from './pantallas/Carreras.jsx'
 const Carrera = lazy(() => import('./pantallas/Carrera.jsx'))
-const Catalogo = lazy(() => import('./pantallas/Catalogo.jsx'))
 
 const leerRuta = () => (window.location.hash.replace(/^#\/?/, '') || 'inicio').split('?')[0]
 const ir = (r) => { window.location.hash = `/${r}` }
-const SIN_PERFIL = new Set(['tu', 'cadena', 'bici', 'carreras', 'carrera', 'competicion', 'catalogo'])
+const SIN_PERFIL = new Set(['tu', 'cadena', 'bici', 'carreras', 'carrera'])
 
 export default function App() {
   const [ruta, setRuta] = useState(leerRuta)
   const [perfil, setPerfil] = useState(leerLocal)
   const [usuario, setUsuario] = useState(null)
-  const [admin, setAdmin] = useState(false)
-  const [versionCat, setVersionCat] = useState(CATALOGO.version)
   const [saca, setSaca] = useState(() => (leerLocal()?.sacaCadena ?? 'no_se') !== 'no')
   const [bd, setBd] = useState({ bicis: [], cadenas: [], eventos: [], carreras: [], cargado: false, cargando: false, error: '' })
 
@@ -36,18 +32,12 @@ export default function App() {
     return () => window.removeEventListener('hashchange', f)
   }, [])
 
-  // Catálogo publicado por el administrador; si no hay, queda el incorporado.
-  useEffect(() => {
-    catalogoPublicado().then((c) => { if (c && setCatalogo(c)) setVersionCat(c.version) })
-  }, [])
-
   // Sesión de Google: al entrar, sube el perfil local o trae el guardado en la cuenta.
   useEffect(() => {
     if (!supabase) return
     const alEntrar = async (u) => {
       setUsuario(u)
       if (!u) return
-      esAdmin(u).then(setAdmin)
       const local = leerLocal()
       if (local) await sincronizar(u, local, null)
       else {
@@ -56,10 +46,7 @@ export default function App() {
       }
     }
     supabase.auth.getSession().then(({ data }) => alEntrar(data.session?.user ?? null))
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
-      setUsuario(s?.user ?? null)
-      if (!s?.user) setAdmin(false)
-    })
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setUsuario(s?.user ?? null))
     return () => sub.subscription.unsubscribe()
   }, [])
 
@@ -82,10 +69,7 @@ export default function App() {
   useEffect(() => { if (necesitaDatos && datos && !bd.cargado && !bd.cargando) recargar() }, [necesitaDatos, datos, bd.cargado, bd.cargando, recargar])
 
   const imp = useDeferredValue(perfil?.importancias)
-  const resultado = useMemo(() => (perfil ? recomendar({ ...perfil, importancias: imp }, { sacaCadena: saca }) : null),
-    // versionCat fuerza el recálculo cuando llega un catálogo nuevo
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [perfil, imp, saca, versionCat])
+  const resultado = useMemo(() => (perfil ? recomendar({ ...perfil, importancias: imp }, { sacaCadena: saca }) : null), [perfil, imp, saca])
 
   const actualizar = (cambios) => {
     setPerfil((p) => {
@@ -97,11 +81,10 @@ export default function App() {
 
   const alTerminarPerfil = (nuevo) => {
     const s = nuevo.sacaCadena !== 'no'
-    const conCompeticion = { ...nuevo, competicion: perfil?.competicion }
-    setPerfil(conCompeticion)
+    setPerfil(nuevo)
     setSaca(s)
-    guardarLocal(conCompeticion)
-    if (usuario) sincronizar(usuario, conCompeticion, recomendar(conCompeticion, { sacaCadena: s }), CATALOGO.version)
+    guardarLocal(nuevo)
+    if (usuario) sincronizar(usuario, nuevo, recomendar(nuevo, { sacaCadena: s }))
     ir('resultado')
   }
 
@@ -128,11 +111,8 @@ export default function App() {
     case 'comparar':
       pantalla = <Comparar perfil={perfil} resultado={resultado} saca={saca} onActual={(a) => actualizar({ actual: a })} />
       break
-    case 'competicion':
-      pantalla = <Competicion perfil={perfil} onGuardar={actualizar} />
-      break
     case 'tu':
-      pantalla = <Tu perfil={perfil} usuario={usuario} admin={admin} onEditar={() => ir('perfil')}
+      pantalla = <Tu perfil={perfil} usuario={usuario} onEditar={() => ir('perfil')}
         onBorrar={() => { guardarLocal(null); setPerfil(null); ir('inicio') }} />
       break
     case 'cadena':
@@ -181,10 +161,6 @@ export default function App() {
         ), 'Planificador de carrera', 'Sube el GPX de tu carrera y te decimos dónde re-aplicar.')
       break
     }
-    case 'catalogo':
-      pantalla = admin ? <Catalogo onPublicado={(c) => { setCatalogo(c); setVersionCat(c.version) }} />
-        : <main className="app"><p className="aviso">Esta sección es solo para el administrador del catálogo.</p></main>
-      break
     default:
       pantalla = perfil ? <Inicio perfil={perfil} resultado={resultado} usuario={usuario} /> : <Bienvenida usuario={usuario} onEmpezar={() => ir('perfil')} />
   }

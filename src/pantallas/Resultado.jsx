@@ -72,14 +72,6 @@ export default function Resultado({ perfil, resultado, saca, setSaca, onImportan
         <span className="circulo claro" style={{ background: 'var(--pill)' }}><Flecha /></span>
       </a>
 
-      <a className={`card entre${perfil.compite ? ' destacada' : ''}`} href="#/competicion" style={{ textDecoration: 'none' }}>
-        <div className="col">
-          <h2>Modo competición</h2>
-          <span className="peq muted">Eficiencia contra duración: segundos por carrera y costo por vatio</span>
-        </div>
-        <span className="circulo claro" style={{ background: 'var(--pill)' }}><Flecha /></span>
-      </a>
-
       <div className="card">
         <div className="interruptor">
           <div className="col">

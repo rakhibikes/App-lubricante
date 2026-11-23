@@ -9,7 +9,7 @@ const ITEMS = [
 ]
 
 export default function Nav({ ruta }) {
-  const activa = { comparar: 'resultado', competicion: 'resultado', bici: 'cadena', carrera: 'carreras', catalogo: 'tu' }[ruta.split('/')[0]] || ruta.split('/')[0]
+  const activa = { comparar: 'resultado', bici: 'cadena', carrera: 'carreras' }[ruta.split('/')[0]] || ruta.split('/')[0]
   return (
     <nav className="nav" aria-label="Secciones">
       {ITEMS.map(([id, nombre, icono]) => (

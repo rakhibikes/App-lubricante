@@ -22,7 +22,7 @@ export async function salir() {
 }
 
 // Guarda el perfil (una fila por persona) y agrega la recomendación al historial.
-export async function sincronizar(usuario, perfil, resultado, versionCatalogo) {
+export async function sincronizar(usuario, perfil, resultado) {
   if (!supabase || !usuario) return
   await supabase.from('perfiles').upsert({
     user_id: usuario.id,
@@ -40,7 +40,6 @@ export async function sincronizar(usuario, perfil, resultado, versionCatalogo) {
       solidez: resultado.ranking[0]?.solidez,
       top,
       perfil,
-      catalogo: versionCatalogo || null,
     })
   }
 }

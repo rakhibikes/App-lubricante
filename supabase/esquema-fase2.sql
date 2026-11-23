@@ -1,21 +1,5 @@
--- Fase 2: mi bicicleta, salud de la cadena, planificador de carrera y catálogo administrable.
+-- Fase 2: mi bicicleta, salud de la cadena y planificador de carrera.
 -- Pegar completo en Supabase > SQL Editor > New query > Run. Se puede correr más de una vez.
-
--- ---------- Administrador ----------
-create table if not exists public.admins (
-  email text primary key
-);
-alter table public.admins enable row level security;
-insert into public.admins (email) values
-  ('rakhi.bikes@gmail.com'),
-  ('manuperezraquiman@gmail.com')
-on conflict do nothing;
-
-create or replace function public.es_admin() returns boolean
-language sql stable security definer set search_path = public as $$
-  select exists (select 1 from public.admins where lower(email) = lower(auth.jwt() ->> 'email'));
-$$;
-grant execute on function public.es_admin() to anon, authenticated;
 
 -- ---------- Módulo 2: bicicletas ----------
 create table if not exists public.bicicletas (
@@ -80,7 +64,7 @@ create table if not exists public.carreras (
   creado      timestamptz not null default now()
 );
 
--- Cada persona ve y edita solo lo suyo; el administrador puede leer cadenas y bitácora para calibrar K.
+-- Cada persona ve y edita solo lo suyo. Tú ves todo desde el panel de Supabase.
 do $$
 declare t text;
 begin
@@ -91,48 +75,6 @@ begin
     execute format('grant select, insert, update, delete on public.%I to authenticated', t);
   end loop;
 end $$;
-
-drop policy if exists "admin lee cadenas" on public.cadenas;
-create policy "admin lee cadenas" on public.cadenas for select to authenticated using (public.es_admin());
-drop policy if exists "admin lee eventos" on public.eventos;
-create policy "admin lee eventos" on public.eventos for select to authenticated using (public.es_admin());
-
--- ---------- Módulo 8: catálogo versionado ----------
-create table if not exists public.catalogo_versiones (
-  id        uuid primary key default gen_random_uuid(),
-  nombre    text not null,
-  datos     jsonb not null,
-  publicado boolean not null default true,
-  nota      text,
-  autor     uuid default auth.uid(),
-  creado    timestamptz not null default now()
-);
-alter table public.catalogo_versiones enable row level security;
-drop policy if exists "todos leen lo publicado" on public.catalogo_versiones;
-create policy "todos leen lo publicado" on public.catalogo_versiones for select to anon, authenticated using (publicado or public.es_admin());
-drop policy if exists "admin escribe" on public.catalogo_versiones;
-create policy "admin escribe" on public.catalogo_versiones for insert to authenticated with check (public.es_admin());
-drop policy if exists "admin edita" on public.catalogo_versiones;
-create policy "admin edita" on public.catalogo_versiones for update to authenticated using (public.es_admin()) with check (public.es_admin());
-grant select on public.catalogo_versiones to anon, authenticated;
-grant insert, update on public.catalogo_versiones to authenticated;
-
--- Lubricantes que la gente busca y no encuentra.
-create table if not exists public.busquedas (
-  id     bigint generated always as identity primary key,
-  texto  text not null check (char_length(texto) <= 80),
-  creado timestamptz not null default now()
-);
-alter table public.busquedas enable row level security;
-drop policy if exists "cualquiera registra" on public.busquedas;
-create policy "cualquiera registra" on public.busquedas for insert to anon, authenticated with check (true);
-drop policy if exists "admin lee" on public.busquedas;
-create policy "admin lee" on public.busquedas for select to authenticated using (public.es_admin());
-grant insert on public.busquedas to anon, authenticated;
-grant select on public.busquedas to authenticated;
-
--- Cada recomendación guarda la versión del catálogo con que se calculó.
-alter table public.recomendaciones add column if not exists catalogo text;
 
 -- ---------- Archivos GPX (Storage, privado, una carpeta por persona) ----------
 insert into storage.buckets (id, name, public) values ('gpx', 'gpx', false) on conflict (id) do nothing;
