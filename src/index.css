@@ -305,3 +305,6 @@ label.col { display: flex; flex-direction: column; }
 .numero { font-size: 24px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .leaflet-container { font-family: inherit; }
 
+
+.opcion-chica { min-height: 0; padding: 12px 16px; font-size: 16px; border-color: var(--line); }
+.opcion-chica small { line-height: 1.35; margin-top: 4px; }

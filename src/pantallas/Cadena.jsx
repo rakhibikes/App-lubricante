@@ -1,10 +1,19 @@
 import { useMemo, useState } from 'react'
-import { estadoCadena, factorPropio, medicionesDe, esGamaAlta, grupoDe, productosChile } from '../lib/cadena.js'
+import { estadoCadena, factorPropio, medicionesDe, esGamaAlta, grupoDe, productosChile, mezclaBase } from '../lib/cadena.js'
 import { km, n0, n1, pct } from '../lib/formato.js'
 import { Check } from '../ui/iconos.jsx'
 
 const hoy = () => new Date().toISOString().slice(0, 10)
 const CLIMAS = [['seco', 'Seco'], ['normal', 'Normal'], ['lluvia', 'Mucha lluvia o barro']]
+// Qué significa cada opción de "¿Cómo estuvo?" y cómo cambia la mezcla con que se calcula el desgaste.
+function definicionesClima(base) {
+  const p = (x) => `${Math.round(x * 100)} %`
+  return {
+    seco: 'Sin lluvia ni charcos. Asfalto o tierra seca, aunque haya polvo. Se quita de tu mezcla la parte con lluvia.',
+    normal: `Como andas siempre, según tu perfil: ${p(base.limpio)} limpio y seco, ${p(base.polvo)} con polvo o tierra, ${p(base.humedo)} con lluvia o barro y ${p(base.extremo)} extremo.`,
+    lluvia: 'Varios días con lluvia, charcos o barro, o salidas que terminaron con la cadena sucia de agua y tierra. Se cuenta la mitad de los km con lluvia o barro y 15 % en condición extrema.',
+  }
+}
 const MEDIDAS = [['bajo', 'Bajo 0,5 %'], ['medio', 'Entre 0,5 y 0,75 %'], ['alto', 'Sobre 0,75 %']]
 const NOMBRE_EVENTO = { km: 'Anduve', lub: 'Lubriqué', limpie: 'Limpié', medicion: 'Medí', cambio: 'Cambié la cadena' }
 const fechaCorta = (f) => {
@@ -199,8 +208,12 @@ export default function Cadena({ datos, bicis, cadenas, eventos, perfil, biciId,
           {panel === 'km' && (
             <div className="col" style={{ gap: 6 }}>
               <span className="etiqueta">¿Cómo estuvo?</span>
-              <div className="chips" role="radiogroup" aria-label="Cómo estuvo el clima">
-                {CLIMAS.map(([v, t]) => <button key={v} type="button" role="radio" aria-checked={clima === v} className="chip-op" onClick={() => setClima(v)}>{t}</button>)}
+              <div className="opciones" role="radiogroup" aria-label="Cómo estuvo el clima">
+                {CLIMAS.map(([v, t]) => (
+                  <button key={v} type="button" role="radio" aria-checked={clima === v} aria-pressed={clima === v} className="opcion opcion-chica" onClick={() => setClima(v)}>
+                    <span>{t}<small>{definicionesClima(mezclaBase(perfil, bici))[v]}</small></span>
+                  </button>
+                ))}
               </div>
             </div>
           )}
