@@ -29,7 +29,7 @@ npm run build      # genera la carpeta dist/
 | `supabase/esquema.sql` | Fase 1: tablas `perfiles` y `recomendaciones` con seguridad por fila |
 | `supabase/esquema-fase2.sql` | Fase 2: bicicletas, cadenas, eventos, carreras y bucket `gpx` |
 | `src/lib/cadena.js` | Salud de la cadena: exposición, Weibull β = 3, cambio óptimo por r, vida residual, factor K |
-| `src/lib/terreno.js` | Terreno sugerido: superficie de los caminos de OpenStreetMap (API Overpass) a lo largo del GPX |
+| `src/lib/terreno.js` | Terreno sugerido: ajusta el GPX al mapa con Valhalla (FOSSGIS) y lee la superficie; si falla, consulta Overpass |
 | `src/lib/carrera.js` | Planificador: confiabilidad β = 4, re-aplicación al 98 %, paradas, desgaste |
 | `src/lib/datos.js` | Datos con cuenta (Supabase) o modo demo (navegador) |
 

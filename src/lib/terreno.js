@@ -179,15 +179,71 @@ export function armarTramos(asignados, total, minimo = 1) {
   return salida
 }
 
-export async function sugerirTerreno(puntos, total, { alProgresar = () => {}, paso = 0.25, radio = 40 } = {}) {
+// ---------- Valhalla: ajuste de la traza al mapa ----------
+// El servidor público de Valhalla (FOSSGIS, el mismo que usa openstreetmap.org para rutas)
+// ajusta el GPX a los caminos y devuelve la superficie de cada tramo, deducida de OpenStreetMap
+// aun cuando el camino no la tiene anotada.
+const VALHALLA = 'https://valhalla1.openstreetmap.de/trace_attributes'
+const SUPERFICIE_VALHALLA = {
+  paved_smooth: ['seca', 'asfalto'], paved: ['seca', 'pavimento'], paved_rough: ['seca', 'pavimento irregular'],
+  compacted: ['gravel', 'tierra compactada'], dirt: ['gravel', 'tierra'], gravel: ['gravel', 'ripio'], path: ['gravel', 'sendero'], impassable: ['barro', 'intransitable'],
+}
+const CLASE_VALHALLA = {
+  motorway: 'autopista', trunk: 'carretera', primary: 'ruta principal', secondary: 'ruta secundaria', tertiary: 'camino', unclassified: 'camino rural', residential: 'calle', service_other: 'camino de servicio',
+}
+
+export function clasificarValhalla(edge) {
+  if (!edge) return null
+  const [cond, nombre] = SUPERFICIE_VALHALLA[edge.surface] || (edge.unpaved ? ['gravel', 'sin pavimentar'] : edge.surface ? ['seca', 'pavimento'] : [null, null])
+  if (!cond) return null
+  const clase = CLASE_VALHALLA[edge.road_class]
+  return { cond, fuente: 'osm', detalle: clase ? `${nombre}, ${clase}` : nombre }
+}
+
+async function ajustarValhalla(trozo) {
+  const cuerpo = {
+    shape: trozo.map((p) => ({ lat: +p[0].toFixed(6), lon: +p[1].toFixed(6) })),
+    costing: 'bicycle',
+    shape_match: 'map_snap',
+    trace_options: { search_radius: 60 },
+    filters: { attributes: ['edge.surface', 'edge.unpaved', 'edge.road_class', 'matched.edge_index', 'matched.type'], action: 'include' },
+  }
+  const r = await fetch(VALHALLA, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) })
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(`Valhalla ${r.status}${j.error ? `: ${j.error}` : ''}`)
+  const edges = j.edges || []
+  const mp = j.matched_points || []
+  return trozo.map((p, k) => {
+    const m = mp[k]
+    const c = m && m.type !== 'unmatched' && Number.isInteger(m.edge_index) ? clasificarValhalla(edges[m.edge_index]) : null
+    return { km: p[3], ...(c || { cond: null, fuente: 'sin_dato', detalle: 'sin dato' }) }
+  })
+}
+
+const pausa = (ms) => new Promise((res) => setTimeout(res, ms))
+
+// Primero Valhalla (ajuste al mapa, más preciso); si un trozo falla, se consulta con Overpass.
+export async function sugerirTerreno(puntos, total, { alProgresar = () => {}, paso = 0.15, radio = 40 } = {}) {
   const pts = muestrear(puntos, paso)
   const asignados = []
   const errores = []
-  const lote = 30
+  const lote = 250 // unos 35 km por consulta, bajo el límite del servidor
   const n = Math.ceil((pts.length - 1) / lote)
   for (let i = 0; i < n; i++) {
     alProgresar(i / n)
-    await procesar(pts.slice(i * lote, (i + 1) * lote + 1), radio, asignados, errores)
+    const trozo = pts.slice(i * lote, (i + 1) * lote + 1)
+    try {
+      const res = await ajustarValhalla(trozo)
+      asignados.push(...res.slice(0, -1))
+      await pausa(400) // uso respetuoso del servidor público
+    } catch (e) {
+      errores.push(e.message)
+      const parcial = []
+      for (let k = 0; k < trozo.length - 1; k += 30) {
+        await procesar(trozo.slice(k, Math.min(k + 31, trozo.length)), radio, parcial, errores)
+      }
+      asignados.push(...parcial)
+    }
   }
   // el último punto de la ruta toma la clasificación del anterior
   if (asignados.length) asignados.push({ ...asignados[asignados.length - 1], km: pts[pts.length - 1][3] })
@@ -195,6 +251,5 @@ export async function sugerirTerreno(puntos, total, { alProgresar = () => {}, pa
   for (const a of asignados) if (a.fuente === 'sin_respuesta') a.fuente = 'sin_dato'
   const tramos = armarTramos(asignados, total)
   const kmPor = (f) => (asignados.filter((a) => a.fuente === f).length / asignados.length) * total
-  const sinRespuesta = errores.length ? (errores.length * 16 * paso) : 0
-  return { tramos, resumen: { osm: kmPor('osm'), inferido: kmPor('inferido'), sinDato: kmPor('sin_dato'), errores: errores.length, primerError: errores[0] || '', sinRespuesta } }
+  return { tramos, resumen: { osm: kmPor('osm'), inferido: kmPor('inferido'), sinDato: kmPor('sin_dato'), errores: errores.length, primerError: errores[0] || '' } }
 }
