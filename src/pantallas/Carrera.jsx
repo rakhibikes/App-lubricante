@@ -371,7 +371,7 @@ export default function Carrera({ carrera, perfil, datos, bd, onGuardada, onBorr
                 es[i] = { ...e, inicio: v ?? e.inicio, ...(esCeraSilca(nuevo) ? { respaldo: superSecretRecomendado()?.id ?? e.respaldo } : {}) }
                 set({ estrategias: es })
               }} />
-              {esCeraSilca(buscarProducto(e.inicio)) && <span className="peq muted">Silca recomienda re-aplicar Super Secret sobre su cera.</span>}
+              {esCeraSilca(buscarProducto(e.inicio)) && <span className="peq muted">En carrera, Silca recomienda re-aplicar Super Secret sobre su cera.</span>}
             </label>
             <label className="col peq" htmlFor={`e-res-${i}`} style={{ gap: 4 }}>
               <span className="muted">Re-aplicar con</span>

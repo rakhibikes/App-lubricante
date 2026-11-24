@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { NOMBRE_TIPO, NOMBRE_SEGMENTO, SEGMENTOS, PARAMS, etiquetaSolidez, esCeraSilca, superSecretRecomendado } from '../lib/motor.js'
+import { NOMBRE_TIPO, NOMBRE_SEGMENTO, SEGMENTOS, PARAMS, etiquetaSolidez } from '../lib/motor.js'
 import { km, clpR, n0, pct } from '../lib/formato.js'
 import { Flecha } from '../ui/iconos.jsx'
 
@@ -50,13 +50,6 @@ export default function Resultado({ perfil, resultado, saca, setSaca, onImportan
         <div className="aviso">
           * {g.producto.nota_estimado || `${g.wEstimado ? 'Su eficiencia no está medida' : 'Su costo no tiene precio verificado'}; usamos la mediana de su tipo.`}
           {alternativa && <> Si prefieres todo medido, <strong>{alternativa.producto.nombre}</strong> queda con {n0(alternativa.puntaje)} puntos.</>}
-        </div>
-      )}
-
-      {esCeraSilca(g.producto) && !/Super Secret/.test(g.producto.nombre) && (
-        <div className="aviso">
-          Entre encerados, Silca recomienda re-aplicar <strong>{superSecretRecomendado()?.nombre}</strong> por goteo, sin sacar la cadena.
-          En Salud de la cadena y en el planificador queda como tu re-aplicación.
         </div>
       )}
 

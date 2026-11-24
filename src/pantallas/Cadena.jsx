@@ -97,13 +97,7 @@ export default function Cadena({ datos, bicis, cadenas, eventos, perfil, biciId,
 
   const evCadena = eventos.filter((e) => e.cadena_id === cadena.id).sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '') || (b.odo || 0) - (a.odo || 0))
   const ultimoOdo = s.odo
-  const abrir = (p) => {
-    setError('')
-    setOdo(String(ultimoOdo || ''))
-    // Con cera Silca, lo normal entre encerados es Super Secret; al tocar re-encerar, la cera.
-    setProdLub(String(s.cera ? (s.reencerar ? (['15', '61'].includes(String(s.cera.id)) ? 0 : s.cera.id) : s.relleno.id) : s.producto.id))
-    setPanel(p)
-  }
+  const abrir = (p) => { setError(''); setOdo(String(ultimoOdo || '')); setProdLub(String(s.producto.id)); setPanel(p) }
   const lubAviso = s.avisos.find((a) => a.tipo === 'lubricar')
   const cambiarAviso = s.avisos.find((a) => a.tipo === 'cambiar' || a.tipo === 'cassette')
   const medirAviso = s.avisos.find((a) => a.tipo === 'medir')
@@ -219,8 +213,8 @@ export default function Cadena({ datos, bicis, cadenas, eventos, perfil, biciId,
       )}
 
       <div className="card" style={{ padding: '4px 18px' }}>
-        <Tarea nivel={lubAviso?.nivel} titulo={s.queAplicar.charAt(0).toUpperCase() + s.queAplicar.slice(1)}
-          detalle={`${lubAviso?.nivel === 'alto' ? `Ya toca · ${km(s.kmDesdeLub)} desde la última vez` : `${lubAviso ? 'Pronto · ' : ''}te quedan unos ${km(Math.max(0, s.autonomia - s.kmDesdeLub))} de ${km(s.autonomia)}`}${s.cera ? ` · ${s.rellenos} de 4 re-aplicaciones antes de re-encerar` : ''}`} />
+        <Tarea nivel={lubAviso?.nivel} titulo={`Lubricar con ${s.producto.nombre}`}
+          detalle={lubAviso?.nivel === 'alto' ? `Ya toca · ${km(s.kmDesdeLub)} desde la última vez` : `${lubAviso ? 'Pronto · ' : ''}te quedan unos ${km(Math.max(0, s.autonomia - s.kmDesdeLub))} de ${km(s.autonomia)}`} />
         <div className="barra-lub" aria-hidden="true"><div style={{ width: `${Math.min(100, s.lubFraccion * 100)}%`, background: s.lubFraccion >= 0.8 ? 'var(--accent)' : 'var(--ring)' }} /></div>
         <Tarea nivel={medirAviso ? 'alto' : null} titulo="Medir la cadena"
           detalle={medirAviso ? 'Ya toca medir' : `En ${km(s.kmAMedir)}${s.semanasAMedir !== null ? `, unas ${n0(Math.max(1, s.semanasAMedir))} semanas` : ''} · ${pct(s.probMed)} de seguir bajo 0,5 %`} />

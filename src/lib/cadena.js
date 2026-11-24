@@ -2,7 +2,7 @@
 // La exposición E se mide en vidas medianas hasta 0,5 % de elongación (E = 1 → vida mediana).
 // Dispersión entre cadenas: Weibull de forma β (3). Llegar a 0,75 % ocurre a 1,5 veces la
 // exposición de 0,5 %, porque la elongación crece con el desgaste acumulado.
-import { PARAMS, PRODUCTOS, TIPICOS, buscarProducto, criterios, tasa, SEGMENTOS, segmentoPorTipoBici, GRUPOS, esCeraSilca, esSuperSecret, combinacion, superSecretRecomendado } from './motor.js'
+import { PARAMS, PRODUCTOS, TIPICOS, buscarProducto, criterios, tasa, SEGMENTOS, segmentoPorTipoBici, GRUPOS } from './motor.js'
 
 const LN2 = Math.log(2)
 const beta = () => PARAMS.BETA_CADENA || 3
@@ -78,9 +78,6 @@ export function periodos(cadena, eventos, perfil, bici) {
     .sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '') || (Number(a.odo) || 0) - (Number(b.odo) || 0))
   let odo = Number.isFinite(Number(cadena.instalada_odo)) && cadena.instalada_odo !== null && cadena.instalada_odo !== '' ? Number(cadena.instalada_odo) : null
   let prod = producto(cadena.lubricante_id, perfil)
-  // Con cera Silca, las re-aplicaciones de Super Secret se modelan como la combinación ensayada.
-  let cera = esCeraSilca(prod) ? prod : null
-  let rellenos = 0
   const salida = []
   for (const e of ev) {
     const o = Number(e.odo)
@@ -92,20 +89,15 @@ export function periodos(cadena, eventos, perfil, bici) {
         odo = o
       }
     }
-    if (e.tipo === 'lub' && e.producto_id) {
-      const p = producto(e.producto_id, perfil)
-      if (esCeraSilca(p)) { cera = p; prod = p; rellenos = 0 }
-      else if (cera && esSuperSecret(p)) { prod = combinacion(cera, p); rellenos += 1 }
-      else { prod = p; cera = null; rellenos = 0 }
-    }
+    if (e.tipo === 'lub' && e.producto_id) prod = producto(e.producto_id, perfil)
     salida.push({ evento: e, odo: odo ?? 0, producto: prod })
   }
-  return { pasos: salida, odo: odo ?? 0, producto: prod, base, cera, rellenos }
+  return { pasos: salida, odo: odo ?? 0, producto: prod, base }
 }
 
 // Exposición acumulada (sin K) en cada punto: u = Σ km · tasa / 1000. E = K · u.
 function recorrer(cadena, eventos, perfil, bici) {
-  const { pasos, odo, producto: prodActual, base, cera, rellenos } = periodos(cadena, eventos, perfil, bici)
+  const { pasos, odo, producto: prodActual, base } = periodos(cadena, eventos, perfil, bici)
   let u = 0
   let kmLub = 0 // fracción de autonomía gastada desde la última lubricación
   let ultimaLubOdo = Number(cadena.instalada_odo) || 0
@@ -124,7 +116,7 @@ function recorrer(cadena, eventos, perfil, bici) {
       if (e.tipo === 'medicion') mediciones.push({ km: p.odo - inicio, u, resultado: e.resultado, fecha: e.fecha })
     }
   }
-  return { u, kmLub, ultimaLubOdo, curva, mediciones, odo, inicio, producto: prodActual, base, cera, rellenos }
+  return { u, kmLub, ultimaLubOdo, curva, mediciones, odo, inicio, producto: prodActual, base }
 }
 
 // Factor propio K: máximo a posteriori con todas las mediciones de la persona.
@@ -181,12 +173,8 @@ export function estadoCadena({ cadena, eventos, perfil, bici, K, kmSemana }) {
   if (ultima?.resultado === 'alto') avisos.push({ nivel: 'alto', tipo: 'cassette', texto: 'La medición dio sobre 0,75 %: cambia la cadena y prueba si salta; probablemente toque cassette.' })
   else if (ultima?.resultado === 'medio') avisos.push({ nivel: 'alto', tipo: 'cambiar', texto: 'La medición dio entre 0,5 y 0,75 %: cambia la cadena ahora.' })
   else if (E >= tStar) avisos.push({ nivel: 'alto', tipo: 'cambiar', texto: 'Llegaste al cambio óptimo: cambia la cadena.' })
-  // Con cera Silca se re-aplica Super Secret; tras 4 re-aplicaciones conviene volver a encerar.
-  const relleno = rec.cera ? superSecretRecomendado() : null
-  const reencerar = rec.cera && rec.rellenos >= 4
-  const queAplicar = rec.cera ? (reencerar ? `re-encerar con ${rec.cera.nombre.replace(/ \+ Super Secret.*$/, '')}` : `re-aplicar ${relleno.nombre}`) : `lubricar con ${rec.producto.nombre}`
-  if (rec.kmLub >= 1) avisos.push({ nivel: 'alto', tipo: 'lubricar', texto: `Toca ${queAplicar}.` })
-  else if (rec.kmLub >= 0.8) avisos.push({ nivel: 'medio', tipo: 'lubricar', texto: `Pronto toca ${queAplicar}.` })
+  if (rec.kmLub >= 1) avisos.push({ nivel: 'alto', tipo: 'lubricar', texto: `Toca lubricar con ${rec.producto.nombre}.` })
+  else if (rec.kmLub >= 0.8) avisos.push({ nivel: 'medio', tipo: 'lubricar', texto: `Pronto toca lubricar con ${rec.producto.nombre}.` })
   if (E >= Emed && !(ultima && ultima.resultado !== 'bajo')) avisos.push({ nivel: 'medio', tipo: 'medir', texto: 'Toca medir la cadena.' })
 
   const autoActual = criterios(rec.producto, rec.base, bici?.tipo === 'electrica').auto
@@ -198,7 +186,6 @@ export function estadoCadena({ cadena, eventos, perfil, bici, K, kmSemana }) {
     kmAMedir, semanasAMedir: kmSemana ? kmAMedir / kmSemana : null, probMed,
     kmCambioTotal: tStar * kmPorE, vidaMediana,
     lubFraccion: rec.kmLub, autonomia: autoActual, kmDesdeLub: rec.kmLub * autoActual,
-    cera: rec.cera, rellenos: rec.rellenos, relleno, reencerar, queAplicar,
     producto: rec.producto, curva: rec.curva.map((c) => ({ km: c.km, E: Kp * c.u })),
     mediciones: rec.mediciones.map((m) => ({ ...m, E: Kp * m.u })),
     medicionesU: rec.mediciones.map((m) => ({ u: m.u, resultado: m.resultado })),
