@@ -55,19 +55,46 @@ export function muestrear(puntos, paso = 0.2) {
   return out
 }
 
+// Overpass responde 200 aunque la consulta se corte por tiempo o memoria: en ese caso trae un
+// "remark" y la lista de caminos vacía. Eso se trata como error para reintentar con menos puntos.
 async function consultar(pts, radio, intento = 0) {
-  const linea = pts.map((p) => `${p[0].toFixed(5)},${p[1].toFixed(5)}`).join(',')
-  const q = `[out:json][timeout:90];way[highway](around:${radio},${linea});out tags geom;`
+  // Unión de búsquedas alrededor de cada punto: funciona en cualquier versión de Overpass y
+  // trae justo los caminos que después se asignan a cada punto.
+  const partes = pts.map((p) => `way[highway](around:${radio},${p[0].toFixed(5)},${p[1].toFixed(5)});`).join('')
+  const q = `[out:json][timeout:60];(${partes});out tags geom;`
   try {
     const r = await fetch(SERVIDORES[intento % SERVIDORES.length], { method: 'POST', body: new URLSearchParams({ data: q }) })
-    if (!r.ok) throw new Error(`Overpass respondió ${r.status}`)
-    return (await r.json()).elements || []
+    if (!r.ok) throw new Error(`OpenStreetMap respondió ${r.status}`)
+    const j = await r.json()
+    if (j.remark && /error|timed out|memory/i.test(j.remark)) {
+      const e = new Error(`OpenStreetMap: ${j.remark.replace(/^runtime error:\s*/i, '').slice(0, 120)}`)
+      e.pesada = true // no se reintenta igual: se parte el trozo
+      throw e
+    }
+    return j.elements || []
   } catch (e) {
-    if (intento < 2) {
-      await new Promise((res) => setTimeout(res, 1500 * (intento + 1)))
+    if (!e.pesada && intento < 2) {
+      await new Promise((res) => setTimeout(res, 2000 * (intento + 1)))
       return consultar(pts, radio, intento + 1)
     }
     throw e
+  }
+}
+
+// Consulta un trozo de ruta; si falla, lo parte en dos hasta un mínimo de puntos.
+async function procesar(trozo, radio, salida, errores) {
+  try {
+    const caminos = await consultar(trozo, radio)
+    salida.push(...asignar(trozo.slice(0, -1), caminos, radio))
+  } catch (e) {
+    if (trozo.length > 16) {
+      const m = Math.floor(trozo.length / 2)
+      await procesar(trozo.slice(0, m + 1), radio, salida, errores)
+      await procesar(trozo.slice(m), radio, salida, errores)
+    } else {
+      errores.push(e.message)
+      salida.push(...trozo.slice(0, -1).map((p) => ({ km: p[3], cond: null, fuente: 'sin_respuesta', detalle: 'sin dato' })))
+    }
   }
 }
 
@@ -152,19 +179,22 @@ export function armarTramos(asignados, total, minimo = 1) {
   return salida
 }
 
-export async function sugerirTerreno(puntos, total, { alProgresar = () => {}, paso = 0.2, radio = 30 } = {}) {
+export async function sugerirTerreno(puntos, total, { alProgresar = () => {}, paso = 0.25, radio = 40 } = {}) {
   const pts = muestrear(puntos, paso)
   const asignados = []
-  const lote = 200
-  const n = Math.ceil(pts.length / lote)
+  const errores = []
+  const lote = 30
+  const n = Math.ceil((pts.length - 1) / lote)
   for (let i = 0; i < n; i++) {
     alProgresar(i / n)
-    const trozo = pts.slice(i * lote, (i + 1) * lote + 1)
-    const caminos = await consultar(trozo, radio)
-    asignados.push(...asignar(trozo.slice(0, lote), caminos, radio))
+    await procesar(pts.slice(i * lote, (i + 1) * lote + 1), radio, asignados, errores)
   }
+  // el último punto de la ruta toma la clasificación del anterior
+  if (asignados.length) asignados.push({ ...asignados[asignados.length - 1], km: pts[pts.length - 1][3] })
   alProgresar(1)
+  for (const a of asignados) if (a.fuente === 'sin_respuesta') a.fuente = 'sin_dato'
   const tramos = armarTramos(asignados, total)
-  const kmPor = (f) => asignados.filter((a) => a.fuente === f).length / asignados.length * total
-  return { tramos, resumen: { osm: kmPor('osm'), inferido: kmPor('inferido'), sinDato: kmPor('sin_dato') } }
+  const kmPor = (f) => (asignados.filter((a) => a.fuente === f).length / asignados.length) * total
+  const sinRespuesta = errores.length ? (errores.length * 16 * paso) : 0
+  return { tramos, resumen: { osm: kmPor('osm'), inferido: kmPor('inferido'), sinDato: kmPor('sin_dato'), errores: errores.length, primerError: errores[0] || '', sinRespuesta } }
 }

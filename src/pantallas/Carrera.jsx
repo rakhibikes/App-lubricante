@@ -203,9 +203,10 @@ export default function Carrera({ carrera, perfil, datos, bd, onGuardada, onBorr
     try {
       const r = await sugerirTerreno(puntos, total, { alProgresar: (p) => setTerreno({ progreso: p }) })
       if (r.tramos.length) set({ tramos: r.tramos })
-      const { osm, inferido, sinDato } = r.resumen
+      const { osm, inferido, sinDato, errores, primerError } = r.resumen
+      if (osm + inferido < 1 && errores) throw new Error(`${primerError || 'el servidor de mapas no respondió'}. Intenta de nuevo en unos minutos`)
       if (prefijo) setAviso(prefijo.trim())
-      setAvisoTerreno(`Terreno sugerido: ${n0(osm)} km con la superficie de OpenStreetMap, ${n0(inferido)} km deducidos del tipo de camino${sinDato >= 1 ? ` y ${n0(sinDato)} km sin dato, que quedaron como gravel` : ''}. El barro depende del clima: márcalo tú si esperas lluvia. Revisa y cambia lo que no corresponda.`)
+      setAvisoTerreno(`Terreno sugerido: ${n0(osm)} km con la superficie de OpenStreetMap, ${n0(inferido)} km deducidos del tipo de camino${sinDato >= 1 ? ` y ${n0(sinDato)} km sin dato, que quedaron como gravel` : ''}${errores ? ' (en algunas partes el servidor de mapas no respondió)' : ''}. El barro depende del clima: márcalo tú si esperas lluvia. Revisa y cambia lo que no corresponda.`)
     } catch (err) {
       if (prefijo) setAviso(prefijo.trim())
       setAvisoTerreno(`No se pudo consultar OpenStreetMap (${err.message}). Marca los tramos a mano tocando el perfil.`)
