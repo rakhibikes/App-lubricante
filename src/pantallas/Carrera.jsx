@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { PRODUCTOS, buscarProducto, NOMBRE_TIPO } from '../lib/motor.js'
+import { PRODUCTOS, buscarProducto, NOMBRE_TIPO, esCeraSilca, superSecretRecomendado } from '../lib/motor.js'
 import { simular, CONDICIONES, NO_RECARGABLE, reglaDeBolsillo, fraccionUmbral } from '../lib/carrera.js'
 import { estadoCadena, factorPropio, medicionesDe } from '../lib/cadena.js'
 import { leerGpx } from '../lib/gpx.js'
@@ -20,8 +20,9 @@ const nombreCorto = (p) => p?.nombre.replace('Silca Hot Melt + Endurance Chip', 
 function estrategiasIniciales(perfil) {
   const chip = idPorNombre('Silca Hot Melt + Endurance Chip')
   const effetto = idPorNombre('Effetto Mariposa Flower Power')
+  const ss = superSecretRecomendado()?.id
   const lista = []
-  if (chip !== undefined) lista.push({ inicio: chip, respaldo: effetto ?? null })
+  if (chip !== undefined) lista.push({ inicio: chip, respaldo: ss ?? effetto ?? null })
   if (effetto !== undefined) lista.push({ inicio: effetto, respaldo: null })
   const actual = perfil?.actual?.id
   if (actual !== undefined && actual !== null && !lista.some((e) => String(e.inicio) === String(actual))) lista.push({ inicio: actual, respaldo: null })
@@ -363,7 +364,14 @@ export default function Carrera({ carrera, perfil, datos, bd, onGuardada, onBorr
               {c.estrategias.length > 1 && <button type="button" className="enlace peq" onClick={() => set({ estrategias: c.estrategias.filter((_, j) => j !== i) })}>Quitar</button>}</div>
             <label className="col peq" htmlFor={`e-ini-${i}`} style={{ gap: 4 }}>
               <span className="muted">Partir con</span>
-              <SelectorProducto id={`e-ini-${i}`} valor={e.inicio} onChange={(v) => { const es = [...c.estrategias]; es[i] = { ...e, inicio: v ?? e.inicio }; set({ estrategias: es }) }} />
+              <SelectorProducto id={`e-ini-${i}`} valor={e.inicio} onChange={(v) => {
+                const es = [...c.estrategias]
+                const nuevo = buscarProducto(v ?? e.inicio)
+                // Con cera Silca, el respaldo lógico es Super Secret (Silca los recomienda juntos).
+                es[i] = { ...e, inicio: v ?? e.inicio, ...(esCeraSilca(nuevo) ? { respaldo: superSecretRecomendado()?.id ?? e.respaldo } : {}) }
+                set({ estrategias: es })
+              }} />
+              {esCeraSilca(buscarProducto(e.inicio)) && <span className="peq muted">Silca recomienda re-aplicar Super Secret sobre su cera.</span>}
             </label>
             <label className="col peq" htmlFor={`e-res-${i}`} style={{ gap: 4 }}>
               <span className="muted">Re-aplicar con</span>

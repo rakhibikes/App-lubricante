@@ -77,7 +77,7 @@ export default function Comparar({ perfil, resultado, saca, onActual }) {
   const { a, b } = c
   const mismo = String(actual.id) === String(g.producto.id)
   const nombreA = perfil.actual.nombre
-  const estA = String(actual.id).startsWith('tip-') || nombreA !== actual.nombre
+  const estA = String(actual.id).startsWith('tip-') || nombreA !== actual.nombre || actual.estimado?.length > 0
   const menosCadenas = a.cadenas - b.cadenas
 
   let frase

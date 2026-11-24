@@ -45,9 +45,20 @@ export function pesosAHP(imp) {
 
 const precioMl = (nombre) => PRODUCTOS.find((p) => p.nombre === nombre)?.precio_ml || 0
 
+// Intervalos de re-aplicación (km) con que ZFC midió el desgaste en cada condición.
+// Normal: 3 aplicaciones por bloque limpio de 1.000 km y 6 por bloque contaminado.
+// Extendido (*E.A): 1 y 2 (3 en el bloque extremo). Doble (*D.A): 6 y 12.
+export const PROTOCOLO = {
+  normal: { limpio: 1000 / 3, polvo: 1000 / 6, humedo: 1000 / 6, extremo: 1000 / 6 },
+  extendido: { limpio: 1000, polvo: 500, humedo: 500, extremo: 1000 / 3 },
+  doble: { limpio: 1000 / 6, polvo: 1000 / 12, humedo: 1000 / 12, extremo: 1000 / 12 },
+}
+
+// Mezcla Hot Melt + Super Secret: 1 encerado cada 5 aplicaciones, las otras 4 con goteo.
 function costoAplicacion(p) {
-  if (p.precio_ml === 'hib') {
-    return (4 * precioMl('Silca Hot Melt') + 4 * 1.5 * precioMl('Silca Super Secret Drip')) / 5
+  if (p.precio_ml === 'hib' || p.precio_ml === 'hib2') {
+    const goteo = p.precio_ml === 'hib2' ? precioMl('Silca Super Secret 2.0') || precioMl('Silca Super Secret 1.0') : precioMl('Silca Super Secret 1.0')
+    return (P.CONS.inmersion * precioMl('Silca Hot Melt') + 4 * P.CONS.goteo_cera * goteo) / 5
   }
   return P.CONS[p.tipo === 'hibrido' ? 'inmersion' : p.tipo] * p.precio_ml
 }
@@ -63,10 +74,19 @@ export function criterios(p, mix, ebike = false) {
   }
   const sal = {}
   for (const k of Object.keys(SALCOL)) sal[k] = tipico ? P.SAL[t][k] : nz(p[SALCOL[k]], P.SAL[t][k])
+  // El desgaste medido vale si se re-aplica al menos tan seguido como en el ensayo: el intervalo
+  // recomendado es el menor entre la autonomía y el intervalo del protocolo con que se midió.
+  const proto = PROTOCOLO[p.protocolo] || PROTOCOLO.normal
   let inv = 0
-  for (const c of Object.keys(mix)) inv += mix[c] / sal[P.MAPSAL[c]]
+  let invSal = 0
+  for (const c of Object.keys(mix)) {
+    const s = sal[P.MAPSAL[c]]
+    inv += mix[c] / (P.TOPE_PROTOCOLO === false ? s : Math.min(s, proto[c]))
+    invSal += mix[c] / s
+  }
   let auto = 1 / inv
-  if (ebike) auto /= 2
+  let autoSal = 1 / invSal
+  if (ebike) { auto /= 2; autoSal /= 2 }
   let esfuerzo = (1000 / auto) * P.MIN_APP[t]
   for (const c of Object.keys(mix)) esfuerzo += mix[c] * (1000 / P.INT_LIMP[c]) * P.MIN_LIMP[t]
   const wMedido = !tipico && p.w !== null && p.w !== undefined
@@ -79,7 +99,8 @@ export function criterios(p, mix, ebike = false) {
     costo = nz(tipico ? null : p.costo_aud, P.COSTO[t]) * P.AUD_CLP
     costoEstimado = true
   }
-  return { vida: 1000 / (P.K * rate), w, wEstimado: !wMedido, auto, costo, costoEstimado, esfuerzo, b4: tipico ? P.RATE[t].humedo : nz(p.b4, P.RATE[t].humedo) }
+  const estimado = !tipico && Array.isArray(p.estimado) ? p.estimado : []
+  return { vida: 1000 / (P.K * rate), w, wEstimado: !wMedido || estimado.includes('w'), auto, autoSal, costo, costoEstimado: costoEstimado || estimado.includes('precio'), esfuerzo, estimado, b4: tipico ? P.RATE[t].humedo : nz(p.b4, P.RATE[t].humedo) }
 }
 
 function puntajes(lista, mix, ebike, imp) {
@@ -244,3 +265,16 @@ export function autonomiaCondicion(p, cond) {
 export const segmentoPorTipoBici = (tipo) => ({
   ruta: 'Ruta recreativo/fondo', gravel: 'Gravel/aventura', mtb: 'MTB/enduro', urbana: 'Urbano/commuter', electrica: 'e-MTB',
 }[tipo] || 'Gravel/aventura')
+
+// Ceras Silca y su complemento: entre encerados se re-aplica Super Secret. La combinación
+// Hot Melt + Super Secret fue ensayada por ZFC (con la 1.0); con la 2.0 se estima.
+export const CERAS_SILCA = new Set(['0', '4', '15', '61'])
+export const SUPER_SECRET = { 17: 15, 60: 61 } // goteo → combinación
+export const esCeraSilca = (p) => !!p && CERAS_SILCA.has(String(p.id))
+export const esSuperSecret = (p) => !!p && String(p.id) in SUPER_SECRET
+export const superSecretRecomendado = () => PRODUCTOS.find((p) => p.id === 60) || PRODUCTOS.find((p) => p.id === 17)
+// Producto que describe el desgaste cuando sobre una cadena con cera Silca se re-aplica Super Secret.
+export function combinacion(base, relleno) {
+  if (esCeraSilca(base) && esSuperSecret(relleno)) return PRODUCTOS.find((p) => p.id === SUPER_SECRET[relleno.id]) || relleno
+  return relleno
+}

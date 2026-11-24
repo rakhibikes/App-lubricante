@@ -1,7 +1,7 @@
 // Módulo 7: planificador de carrera.
 // Exposición de la lubricación: cada km suma 1 / autonomía del producto en esa condición.
 // Confiabilidad de la lubricación: R = exp(−ln 2 · D^β), β = 4. Se re-aplica antes de bajar del umbral.
-import { PARAMS, autonomiaCondicion, buscarProducto, tasa } from './motor.js'
+import { PARAMS, autonomiaCondicion, buscarProducto, tasa, combinacion } from './motor.js'
 
 const LN2 = Math.log(2)
 export const CONDICIONES = {
@@ -33,7 +33,13 @@ export function simular({ tramos, modo = 'libre', controles = [], estrategia, po
   const inicio = buscarProducto(estrategia.inicio)
   if (!inicio || total <= 0) return null
   const respaldo = estrategia.respaldo ? buscarProducto(estrategia.respaldo) : null
-  const recarga = respaldo || (NO_RECARGABLE.has(inicio.tipo) ? null : inicio)
+  // Partir con la combinación Hot Melt + Super Secret implica re-aplicar ese Super Secret.
+  const ssDeCombo = { 15: 17, 61: 60 }[inicio.id]
+  const recarga = respaldo || (ssDeCombo !== undefined ? buscarProducto(ssDeCombo) : NO_RECARGABLE.has(inicio.tipo) ? null : inicio)
+  // Super Secret sobre cera Silca: dura como el goteo y desgasta como la combinación ensayada.
+  const recargaDesgaste = recarga ? combinacion(inicio, recarga) : null
+  // La combinación parte con un encerado de Hot Melt: el primer tramo dura como la cera.
+  const inicioReal = ssDeCombo !== undefined ? buscarProducto(0) || inicio : inicio
   const umbral = PARAMS.UMBRAL || 0.98
   const dx = Math.max(0.25, total / 2400)
   const Kp = K || PARAMS.K || 2
@@ -46,7 +52,8 @@ export function simular({ tramos, modo = 'libre', controles = [], estrategia, po
     return D
   }
 
-  let prod = inicio
+  let prod = inicioReal
+  let prodDesgaste = inicioReal
   let D = 0
   let Racum = 1
   let desgaste = 0
@@ -74,12 +81,13 @@ export function simular({ tramos, modo = 'libre', controles = [], estrategia, po
         Racum *= Rlub(D)
         paradas.push({ km: x, producto: recarga, cond, R: Rlub(D) })
         prod = recarga
+        prodDesgaste = recargaDesgaste
         D = 0
       }
     }
     D += paso / autonomiaCondicion(prod, CONDICIONES[cond].sal)
-    sinParar += paso / autonomiaCondicion(inicio, CONDICIONES[cond].sal)
-    desgaste += (paso * Kp * tasa(prod, CONDICIONES[cond].bloque)) / 1000
+    sinParar += paso / autonomiaCondicion(inicioReal, CONDICIONES[cond].sal)
+    desgaste += (paso * Kp * tasa(prodDesgaste, CONDICIONES[cond].bloque)) / 1000
     kmSeco += paso * (1 - Rlub(D))
     curva.push({ km: x + paso, R: Racum * Rlub(D), cond })
   }

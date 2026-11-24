@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { NOMBRE_TIPO, NOMBRE_SEGMENTO, SEGMENTOS, PARAMS, etiquetaSolidez } from '../lib/motor.js'
+import { NOMBRE_TIPO, NOMBRE_SEGMENTO, SEGMENTOS, PARAMS, etiquetaSolidez, esCeraSilca, superSecretRecomendado } from '../lib/motor.js'
 import { km, clpR, n0, pct } from '../lib/formato.js'
 import { Flecha } from '../ui/iconos.jsx'
 
@@ -14,7 +14,7 @@ export default function Resultado({ perfil, resultado, saca, setSaca, onImportan
   const kmAnual = perfil.kmSemana * 52
   const semanas = g.auto / perfil.kmSemana
   const empate = s2 && g.puntaje - s2.puntaje < (PARAMS.EMPATE ?? 3)
-  const estimado = g.wEstimado || g.costoEstimado
+  const estimado = g.wEstimado || g.costoEstimado || g.estimado?.length > 0
   const imp = perfil.importancias || SEGMENTOS[perfil.segmento].imp
   const masBarato = empate ? [g, s2].sort((a, b) => a.costo - b.costo)[0] : null
   const alternativa = estimado && g.producto.nombre.includes('Endurance Chip')
@@ -48,8 +48,15 @@ export default function Resultado({ perfil, resultado, saca, setSaca, onImportan
       )}
       {estimado && (
         <div className="aviso">
-          * {g.wEstimado ? 'Su eficiencia no está medida' : 'Su costo no tiene precio verificado'}; usamos la mediana de su tipo.
+          * {g.producto.nota_estimado || `${g.wEstimado ? 'Su eficiencia no está medida' : 'Su costo no tiene precio verificado'}; usamos la mediana de su tipo.`}
           {alternativa && <> Si prefieres todo medido, <strong>{alternativa.producto.nombre}</strong> queda con {n0(alternativa.puntaje)} puntos.</>}
+        </div>
+      )}
+
+      {esCeraSilca(g.producto) && !/Super Secret/.test(g.producto.nombre) && (
+        <div className="aviso">
+          Entre encerados, Silca recomienda re-aplicar <strong>{superSecretRecomendado()?.nombre}</strong> por goteo, sin sacar la cadena.
+          En Salud de la cadena y en el planificador queda como tu re-aplicación.
         </div>
       )}
 
@@ -122,7 +129,7 @@ export default function Resultado({ perfil, resultado, saca, setSaca, onImportan
             <li key={r.producto.id}>
               <span className="num">{i + 1}</span>
               <span style={{ flex: 1 }}>
-                {r.producto.nombre}{(r.wEstimado || r.costoEstimado) ? <span className="est"> *</span> : ''}
+                {r.producto.nombre}{(r.wEstimado || r.costoEstimado || r.estimado?.length) ? <span className="est"> *</span> : ''}
                 <div className="barrita" style={{ width: `${(r.puntaje / max) * 100}%`, opacity: i === 0 ? 1 : 0.45 }} />
               </span>
               <strong style={{ fontVariantNumeric: 'tabular-nums' }}>{n0(r.puntaje)}</strong>
@@ -132,7 +139,7 @@ export default function Resultado({ perfil, resultado, saca, setSaca, onImportan
         {ranking.length > 6 && (
           <button type="button" className="enlace" onClick={() => setVerTodo(!verTodo)}>{verTodo ? 'Ver menos' : `Ver las ${ranking.length}`}</button>
         )}
-        <p className="peq muted" style={{ margin: '10px 0 0' }}>* Dato estimado con la mediana de su tipo. Datos de desgaste: Zero Friction Cycling. Precios de tiendas en Chile, octubre 2026.</p>
+        <p className="peq muted" style={{ margin: '10px 0 0' }}>* Dato estimado: la mediana de su tipo o, en productos nuevos, lo que declara el fabricante. Datos de desgaste: Zero Friction Cycling. Precios de tiendas en Chile, octubre 2026.</p>
       </div>
 
       <button type="button" className="btn btn-secundario btn-bloque" onClick={onEditar}>Cambiar mis respuestas</button>
