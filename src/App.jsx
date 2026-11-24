@@ -128,8 +128,13 @@ export default function App() {
           <Bici key={param} bici={bici} cadena={cadena} perfil={perfil}
             onGuardar={async (b, c) => {
               const guardada = await datos.guardarBici(b)
-              if (!bici) await datos.guardarCadena({ ...c, bici_id: guardada.id })
-              else if (cadena) await datos.guardarCadena({ ...cadena, ...c, bici_id: guardada.id })
+              if (!bici) {
+                const { km_iniciales: kmIni, ...cad } = c
+                const nuevaCadena = await datos.guardarCadena({ ...cad, bici_id: guardada.id })
+                // Los km que ya traía la cadena quedan como su primer registro.
+                if (kmIni > 0) await datos.guardarEvento({ cadena_id: nuevaCadena.id, tipo: 'km', odo: kmIni, clima: 'normal', fecha: cad.instalada_fecha })
+              }
+              else if (cadena) { const { km_iniciales: _k, ...cad } = c; await datos.guardarCadena({ ...cadena, ...cad, bici_id: guardada.id }) }
               await recargar()
               ir(`cadena/${guardada.id}`)
             }}

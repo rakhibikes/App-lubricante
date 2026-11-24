@@ -6,7 +6,7 @@ import { Check } from '../ui/iconos.jsx'
 const hoy = () => new Date().toISOString().slice(0, 10)
 const CLIMAS = [['seco', 'Seco'], ['normal', 'Normal'], ['lluvia', 'Mucha lluvia o barro']]
 const MEDIDAS = [['bajo', 'Bajo 0,5 %'], ['medio', 'Entre 0,5 y 0,75 %'], ['alto', 'Sobre 0,75 %']]
-const NOMBRE_EVENTO = { km: 'Anoté km', lub: 'Lubriqué', limpie: 'Limpié', medicion: 'Medí', cambio: 'Cambié la cadena' }
+const NOMBRE_EVENTO = { km: 'Anduve', lub: 'Lubriqué', limpie: 'Limpié', medicion: 'Medí', cambio: 'Cambié la cadena' }
 const fechaCorta = (f) => {
   try { return new Date(`${f}T12:00:00`).toLocaleDateString('es-CL', { day: 'numeric', month: 'short' }) } catch { return f }
 }
@@ -95,11 +95,20 @@ export default function Cadena({ datos, bicis, cadenas, eventos, perfil, biciId,
   }
   if (!cadena || !s) return <main className="app"><p className="muted">Cargando…</p></main>
 
+  // Km sumados por cada registro (diferencia con el registro anterior).
+  const sumados = {}
+  {
+    let previo = Number(cadena.instalada_odo) || 0
+    for (const e of eventos.filter((x) => x.cadena_id === cadena.id && x.tipo === 'km').sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '') || a.odo - b.odo)) {
+      sumados[e.id] = e.odo - previo
+      previo = e.odo
+    }
+  }
   const evCadena = eventos.filter((e) => e.cadena_id === cadena.id).sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '') || (b.odo || 0) - (a.odo || 0))
   const ultimoOdo = s.odo
   const abrir = (p) => {
     setError('')
-    setOdo(String(ultimoOdo || ''))
+    setOdo('')
     setProdLub(String(s.combinado ? (s.reencerar ? 0 : s.relleno.id) : s.producto.id))
     setPanel(p)
   }
@@ -123,7 +132,7 @@ export default function Cadena({ datos, bicis, cadenas, eventos, perfil, biciId,
     setOcupado(false)
   }
 
-  const cambiarCadena = () => registrar({ tipo: 'cambio', odo: Number(odo) }, async (o) => {
+  const cambiarCadena = () => registrar({ tipo: 'cambio', odo: ultimoOdo + (Number(odo) || 0) }, async (o) => {
     await datos.guardarCadena({ ...cadena, retirada_odo: o, retirada_fecha: hoy() })
     await datos.guardarCadena({ bici_id: bici.id, instalada_fecha: hoy(), instalada_odo: o, lubricante_id: cadena.lubricante_id, edad_desconocida: false })
   })
@@ -172,15 +181,19 @@ export default function Cadena({ datos, bicis, cadenas, eventos, perfil, biciId,
       {panel && panel !== 'menu' && (
         <form className="card col" style={{ gap: 12 }} onSubmit={(e) => {
           e.preventDefault()
-          if (panel === 'km') registrar({ tipo: 'km', odo: Number(odo), clima })
+          if (panel === 'km') {
+            if (!(Number(odo) > 0)) { setError('Anota cuántos km anduviste.'); return }
+            registrar({ tipo: 'km', odo: ultimoOdo + Number(odo), clima })
+          }
           if (panel === 'lub') registrar({ tipo: 'lub', producto_id: prodLub })
           if (panel === 'cambio') cambiarCadena()
         }}>
           <h2>{{ km: 'Anotar km', lub: 'Lubriqué', medicion: '¿Cómo salió la medición?', cambio: 'Cambié la cadena' }[panel]}</h2>
           {(panel === 'km' || panel === 'cambio') && (
             <label className="col" htmlFor="ev-odo" style={{ gap: 6 }}>
-              <span className="etiqueta">Km del odómetro</span>
-              <input id="ev-odo" className="buscador" type="number" inputMode="numeric" min={ultimoOdo} value={odo} onChange={(e) => setOdo(e.target.value)} autoFocus />
+              <span className="etiqueta">{panel === 'km' ? 'Km que anduviste esta semana' : 'Km sin anotar desde tu último registro'}</span>
+              <input id="ev-odo" className="buscador" type="number" inputMode="numeric" min="0" placeholder={panel === 'km' ? 'Ej.: 150' : '0'} value={odo} onChange={(e) => setOdo(e.target.value)} autoFocus />
+              <span className="peq muted">{panel === 'km' ? `Se suman a los ${n0(s.kmRecorridos)} km que lleva la cadena${Number(odo) > 0 ? `: quedaría en ${n0(s.kmRecorridos + Number(odo))} km` : ''}.` : 'Si ya anotaste todo, déjalo en 0.'}</span>
             </label>
           )}
           {panel === 'km' && (
@@ -206,7 +219,7 @@ export default function Cadena({ datos, bicis, cadenas, eventos, perfil, biciId,
               <p className="peq muted" style={{ margin: 0 }}>Con un medidor de cadena (CC-4 u otro). Si no tienes, pide que la midan en un taller.</p>
             </div>
           )}
-          {panel === 'cambio' && <p className="peq muted" style={{ margin: 0 }}>Guardamos la vida de esta cadena ({km(Math.max(0, (Number(odo) || ultimoOdo) - (cadena.instalada_odo || 0)))}) y empezamos a contar una nueva con el mismo lubricante.</p>}
+          {panel === 'cambio' && <p className="peq muted" style={{ margin: 0 }}>Guardamos la vida de esta cadena ({km(s.kmRecorridos + (Number(odo) || 0))}) y empezamos a contar una nueva con el mismo lubricante.</p>}
           {error && <p className="aviso" role="alert" style={{ margin: 0 }}>{error}</p>}
           {panel !== 'medicion' && (
             <div className="pie" style={{ paddingTop: 0 }}>
@@ -240,7 +253,7 @@ export default function Cadena({ datos, bicis, cadenas, eventos, perfil, biciId,
           {' '}Los círculos son tus mediciones; la línea punteada, la proyección con tus condiciones de siempre.
         </p>
         <ul className="resto">
-          <li><span>Km con esta cadena</span><strong>{km(s.kmRecorridos)}</strong></li>
+          <li><span>Km con esta cadena</span><strong>{n0(s.kmRecorridos)} km</strong></li>
           <li><span>{factor.n >= 3 ? 'Tu factor' : 'Factor rodillo a uso real'}</span><strong>K = {n1(factor.K)}{factor.n >= 3 ? '' : ` (desde la 3.ª medición se ajusta a ti)`}</strong></li>
         </ul>
       </div>
@@ -253,7 +266,7 @@ export default function Cadena({ datos, bicis, cadenas, eventos, perfil, biciId,
             <div className="anillo lleno"><Check /></div>
             <div style={{ flex: 1 }} className="peq">
               <span style={{ fontSize: 15 }}>{NOMBRE_EVENTO[e.tipo]}</span>
-              <span className="muted"> · {fechaCorta(e.fecha)}{e.odo !== null && e.odo !== undefined ? ` · ${n0(e.odo)} km` : ''}{e.tipo === 'km' && e.clima !== 'normal' ? ` · ${CLIMAS.find((c) => c[0] === e.clima)?.[1].toLowerCase()}` : ''}{e.tipo === 'medicion' ? ` · ${MEDIDAS.find((m) => m[0] === e.resultado)?.[1]}` : ''}</span>
+              <span className="muted"> · {fechaCorta(e.fecha)}{e.tipo === 'km' ? ` · ${n0(sumados[e.id] ?? 0)} km, total ${n0(Math.max(0, e.odo - (cadena.instalada_odo || 0)))} km` : ''}{e.tipo === 'km' && e.clima !== 'normal' ? ` · ${CLIMAS.find((c) => c[0] === e.clima)?.[1].toLowerCase()}` : ''}{e.tipo === 'medicion' ? ` · ${MEDIDAS.find((m) => m[0] === e.resultado)?.[1]}` : ''}</span>
             </div>
             {e.tipo !== 'cambio' && <button type="button" className="enlace peq" aria-label="Borrar registro" onClick={async () => { await datos.borrarEvento(e.id); onRecargar() }}>Borrar</button>}
           </div>

@@ -24,7 +24,7 @@ export default function Bici({ bici, cadena, perfil, onGuardar, onBorrar }) {
     ...bici,
   }))
   const [c, setC] = useState(() => ({
-    instalada_fecha: hoy(), instalada_odo: '', lubricante_id: perfil?.actual?.id ?? '', edad_desconocida: false, ...cadena,
+    instalada_fecha: hoy(), km_iniciales: '', lubricante_id: perfil?.actual?.id ?? '', edad_desconocida: false, ...cadena,
   }))
   const [error, setError] = useState('')
   const [guardando, setGuardando] = useState(false)
@@ -38,7 +38,7 @@ export default function Bici({ bici, cadena, perfil, onGuardar, onBorrar }) {
   async function guardar(e) {
     e.preventDefault()
     if (!b.nombre.trim()) return setError('Ponle un nombre a la bici.')
-    if (c.instalada_odo === '' || Number(c.instalada_odo) < 0) return setError(c.edad_desconocida ? 'Anota los km del odómetro de hoy.' : 'Anota los km del odómetro cuando instalaste la cadena.')
+    if (nueva && !c.edad_desconocida && (c.km_iniciales === '' || Number(c.km_iniciales) < 0)) return setError('Anota cuántos km lleva la cadena (0 si es nueva).')
     setError('')
     setGuardando(true)
     try {
@@ -48,7 +48,7 @@ export default function Bici({ bici, cadena, perfil, onGuardar, onBorrar }) {
         precio_cassette: b.precio_cassette === '' ? null : Number(b.precio_cassette),
         grupo: b.grupo || null,
       }, {
-        ...c, instalada_odo: Number(c.instalada_odo),
+        ...c, instalada_odo: nueva ? 0 : c.instalada_odo, km_iniciales: c.edad_desconocida ? 0 : Number(c.km_iniciales) || 0,
         instalada_fecha: c.edad_desconocida ? hoy() : c.instalada_fecha,
         lubricante_id: c.lubricante_id === '' ? null : String(c.lubricante_id),
       })
@@ -131,10 +131,13 @@ export default function Bici({ bici, cadena, perfil, onGuardar, onBorrar }) {
                 <input id="b-fecha" className="buscador" type="date" value={c.instalada_fecha || ''} max={hoy()} onChange={(e) => setC({ ...c, instalada_fecha: e.target.value })} />
               </label>
             )}
-            <label className="col" htmlFor="b-odo" style={{ gap: 6 }}>
-              <span className="etiqueta">{c.edad_desconocida ? 'Km del odómetro hoy' : 'Km del odómetro al instalarla'}</span>
-              <input id="b-odo" className="buscador" type="number" inputMode="numeric" min="0" value={c.instalada_odo ?? ''} onChange={(e) => setC({ ...c, instalada_odo: e.target.value })} />
-            </label>
+            {nueva && !c.edad_desconocida && (
+              <label className="col" htmlFor="b-odo" style={{ gap: 6 }}>
+                <span className="etiqueta">Km que lleva la cadena</span>
+                <input id="b-odo" className="buscador" type="number" inputMode="numeric" min="0" placeholder="0 si es nueva" value={c.km_iniciales ?? ''} onChange={(e) => setC({ ...c, km_iniciales: e.target.value })} />
+                <span className="peq muted">Desde ahí, cada semana anotas los km que anduviste y se van sumando.</span>
+              </label>
+            )}
             {c.edad_desconocida && <p className="aviso" style={{ margin: 0 }}>Contamos desde hoy como si la cadena fuera nueva. Mídela pronto para saber cómo está.</p>}
           </div>
         )}
