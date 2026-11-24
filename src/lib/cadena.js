@@ -2,7 +2,7 @@
 // La exposición E se mide en vidas medianas hasta 0,5 % de elongación (E = 1 → vida mediana).
 // Dispersión entre cadenas: Weibull de forma β (3). Llegar a 0,75 % ocurre a 1,5 veces la
 // exposición de 0,5 %, porque la elongación crece con el desgaste acumulado.
-import { PARAMS, PRODUCTOS, TIPICOS, buscarProducto, criterios, tasa, SEGMENTOS, segmentoPorTipoBici, GRUPOS } from './motor.js'
+import { PARAMS, PRODUCTOS, TIPICOS, buscarProducto, criterios, tasa, SEGMENTOS, segmentoPorTipoBici, GRUPOS, esCeraSilca, esSuperSecret, combinacion } from './motor.js'
 
 const LN2 = Math.log(2)
 const beta = () => PARAMS.BETA_CADENA || 3
@@ -71,6 +71,9 @@ function producto(id, perfil) {
   return buscarProducto(id) || buscarProducto(perfil?.actual?.id) || TIPICOS.find((t) => t.id === 'tip-humedo')
 }
 
+export const esCombo = (p) => !!p && ['15', '61'].includes(String(p.id))
+const SS_DE_COMBO = { 15: 17, 61: 60 }
+
 // Recorre la bitácora de una cadena y arma los períodos entre lecturas del odómetro.
 export function periodos(cadena, eventos, perfil, bici) {
   const base = mezclaBase(perfil, bici)
@@ -78,6 +81,9 @@ export function periodos(cadena, eventos, perfil, bici) {
     .sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '') || (Number(a.odo) || 0) - (Number(b.odo) || 0))
   let odo = Number.isFinite(Number(cadena.instalada_odo)) && cadena.instalada_odo !== null && cadena.instalada_odo !== '' ? Number(cadena.instalada_odo) : null
   let prod = producto(cadena.lubricante_id, perfil)
+  // Cera Silca: si entre encerados se re-aplica Super Secret, se pasa al esquema combinado.
+  let cera = esCeraSilca(prod) ? prod : null
+  let ultimaCeraOdo = odo
   const salida = []
   for (const e of ev) {
     const o = Number(e.odo)
@@ -89,15 +95,25 @@ export function periodos(cadena, eventos, perfil, bici) {
         odo = o
       }
     }
-    if (e.tipo === 'lub' && e.producto_id) prod = producto(e.producto_id, perfil)
+    if (e.tipo === 'lub' && e.producto_id) {
+      const p = producto(e.producto_id, perfil)
+      if (esCeraSilca(p) && !esCombo(p)) {
+        // Re-encerado: si ya venía con Super Secret entre encerados, sigue en el esquema combinado.
+        cera = p
+        prod = esCombo(prod) ? prod : p
+        ultimaCeraOdo = odo
+      }
+      else if (cera && esSuperSecret(p)) prod = combinacion(cera, p)
+      else { prod = p; cera = esCeraSilca(p) ? p : null; if (cera) ultimaCeraOdo = odo }
+    }
     salida.push({ evento: e, odo: odo ?? 0, producto: prod })
   }
-  return { pasos: salida, odo: odo ?? 0, producto: prod, base }
+  return { pasos: salida, odo: odo ?? 0, producto: prod, base, cera, ultimaCeraOdo: ultimaCeraOdo ?? odo ?? 0 }
 }
 
 // Exposición acumulada (sin K) en cada punto: u = Σ km · tasa / 1000. E = K · u.
 function recorrer(cadena, eventos, perfil, bici) {
-  const { pasos, odo, producto: prodActual, base } = periodos(cadena, eventos, perfil, bici)
+  const { pasos, odo, producto: prodActual, base, cera, ultimaCeraOdo } = periodos(cadena, eventos, perfil, bici)
   let u = 0
   let kmLub = 0 // fracción de autonomía gastada desde la última lubricación
   let ultimaLubOdo = Number(cadena.instalada_odo) || 0
@@ -116,7 +132,7 @@ function recorrer(cadena, eventos, perfil, bici) {
       if (e.tipo === 'medicion') mediciones.push({ km: p.odo - inicio, u, resultado: e.resultado, fecha: e.fecha })
     }
   }
-  return { u, kmLub, ultimaLubOdo, curva, mediciones, odo, inicio, producto: prodActual, base }
+  return { u, kmLub, ultimaLubOdo, curva, mediciones, odo, inicio, producto: prodActual, base, cera, ultimaCeraOdo }
 }
 
 // Factor propio K: máximo a posteriori con todas las mediciones de la persona.
@@ -173,8 +189,16 @@ export function estadoCadena({ cadena, eventos, perfil, bici, K, kmSemana }) {
   if (ultima?.resultado === 'alto') avisos.push({ nivel: 'alto', tipo: 'cassette', texto: 'La medición dio sobre 0,75 %: cambia la cadena y prueba si salta; probablemente toque cassette.' })
   else if (ultima?.resultado === 'medio') avisos.push({ nivel: 'alto', tipo: 'cambiar', texto: 'La medición dio entre 0,5 y 0,75 %: cambia la cadena ahora.' })
   else if (E >= tStar) avisos.push({ nivel: 'alto', tipo: 'cambiar', texto: 'Llegaste al cambio óptimo: cambia la cadena.' })
-  if (rec.kmLub >= 1) avisos.push({ nivel: 'alto', tipo: 'lubricar', texto: `Toca lubricar con ${rec.producto.nombre}.` })
-  else if (rec.kmLub >= 0.8) avisos.push({ nivel: 'medio', tipo: 'lubricar', texto: `Pronto toca lubricar con ${rec.producto.nombre}.` })
+  // Esquema combinado de Silca: Super Secret entre encerados y re-encerar cada REENCERAR_KM.
+  const combinado = esCombo(rec.producto)
+  const relleno = combinado ? buscarProducto(SS_DE_COMBO[rec.producto.id]) : null
+  const cadaEncerado = PARAMS.REENCERAR_KM || 1200
+  const kmDesdeEncerado = Math.max(0, rec.odo - rec.ultimaCeraOdo)
+  const reencerar = combinado && kmDesdeEncerado >= cadaEncerado
+  const queAplicar = combinado ? (reencerar ? 're-encerar con Silca Hot Melt' : `re-aplicar ${relleno.nombre}`) : `lubricar con ${rec.producto.nombre}`
+  if (reencerar) avisos.push({ nivel: 'alto', tipo: 'lubricar', texto: `Toca ${queAplicar}.` })
+  else if (rec.kmLub >= 1) avisos.push({ nivel: 'alto', tipo: 'lubricar', texto: `Toca ${queAplicar}.` })
+  else if (rec.kmLub >= 0.8) avisos.push({ nivel: 'medio', tipo: 'lubricar', texto: `Pronto toca ${queAplicar}.` })
   if (E >= Emed && !(ultima && ultima.resultado !== 'bajo')) avisos.push({ nivel: 'medio', tipo: 'medir', texto: 'Toca medir la cadena.' })
 
   const autoActual = criterios(rec.producto, rec.base, bici?.tipo === 'electrica').auto
@@ -186,6 +210,8 @@ export function estadoCadena({ cadena, eventos, perfil, bici, K, kmSemana }) {
     kmAMedir, semanasAMedir: kmSemana ? kmAMedir / kmSemana : null, probMed,
     kmCambioTotal: tStar * kmPorE, vidaMediana,
     lubFraccion: rec.kmLub, autonomia: autoActual, kmDesdeLub: rec.kmLub * autoActual,
+    combinado, relleno, reencerar, queAplicar, kmAlEncerado: Math.max(0, cadaEncerado - kmDesdeEncerado),
+    ceraSola: !combinado && esCeraSilca(rec.producto),
     producto: rec.producto, curva: rec.curva.map((c) => ({ km: c.km, E: Kp * c.u })),
     mediciones: rec.mediciones.map((m) => ({ ...m, E: Kp * m.u })),
     medicionesU: rec.mediciones.map((m) => ({ u: m.u, resultado: m.resultado })),

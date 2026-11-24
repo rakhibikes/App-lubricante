@@ -97,7 +97,12 @@ export default function Cadena({ datos, bicis, cadenas, eventos, perfil, biciId,
 
   const evCadena = eventos.filter((e) => e.cadena_id === cadena.id).sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '') || (b.odo || 0) - (a.odo || 0))
   const ultimoOdo = s.odo
-  const abrir = (p) => { setError(''); setOdo(String(ultimoOdo || '')); setProdLub(String(s.producto.id)); setPanel(p) }
+  const abrir = (p) => {
+    setError('')
+    setOdo(String(ultimoOdo || ''))
+    setProdLub(String(s.combinado ? (s.reencerar ? 0 : s.relleno.id) : s.producto.id))
+    setPanel(p)
+  }
   const lubAviso = s.avisos.find((a) => a.tipo === 'lubricar')
   const cambiarAviso = s.avisos.find((a) => a.tipo === 'cambiar' || a.tipo === 'cassette')
   const medirAviso = s.avisos.find((a) => a.tipo === 'medir')
@@ -213,8 +218,8 @@ export default function Cadena({ datos, bicis, cadenas, eventos, perfil, biciId,
       )}
 
       <div className="card" style={{ padding: '4px 18px' }}>
-        <Tarea nivel={lubAviso?.nivel} titulo={`Lubricar con ${s.producto.nombre}`}
-          detalle={lubAviso?.nivel === 'alto' ? `Ya toca · ${km(s.kmDesdeLub)} desde la última vez` : `${lubAviso ? 'Pronto · ' : ''}te quedan unos ${km(Math.max(0, s.autonomia - s.kmDesdeLub))} de ${km(s.autonomia)}`} />
+        <Tarea nivel={lubAviso?.nivel} titulo={s.queAplicar.charAt(0).toUpperCase() + s.queAplicar.slice(1)}
+          detalle={`${s.reencerar ? 'Llevas 1.200 km o más desde el último encerado' : lubAviso?.nivel === 'alto' ? `Ya toca · ${km(s.kmDesdeLub)} desde la última vez` : `${lubAviso ? 'Pronto · ' : ''}te quedan unos ${km(Math.max(0, s.autonomia - s.kmDesdeLub))} de ${km(s.autonomia)}`}${s.combinado && !s.reencerar ? ` · re-encerar en ${km(s.kmAlEncerado)}` : ''}`} />
         <div className="barra-lub" aria-hidden="true"><div style={{ width: `${Math.min(100, s.lubFraccion * 100)}%`, background: s.lubFraccion >= 0.8 ? 'var(--accent)' : 'var(--ring)' }} /></div>
         <Tarea nivel={medirAviso ? 'alto' : null} titulo="Medir la cadena"
           detalle={medirAviso ? 'Ya toca medir' : `En ${km(s.kmAMedir)}${s.semanasAMedir !== null ? `, unas ${n0(Math.max(1, s.semanasAMedir))} semanas` : ''} · ${pct(s.probMed)} de seguir bajo 0,5 %`} />
@@ -222,6 +227,7 @@ export default function Cadena({ datos, bicis, cadenas, eventos, perfil, biciId,
           detalle={cambiarAviso ? cambiarAviso.texto : `En ${km(s.kmAlCambio)}${s.semanasAlCambio !== null ? ` · unas ${n0(s.semanasAlCambio)} semanas` : ''}`} />
       </div>
 
+      {s.ceraSola && <p className="aviso" style={{ margin: 0 }}>Opción de Silca: entre encerados puedes re-aplicar Super Secret por goteo y re-encerar cada 1.200 km. Si lo haces, anótalo como "Lubriqué" con Super Secret y la app sigue ese esquema.</p>}
       {cadena.edad_desconocida && s.mediciones.length === 0 && <p className="aviso" style={{ margin: 0 }}>No sabemos la edad de esta cadena: mídela para que el cálculo parta de su estado real.</p>}
       {esGamaAlta(bici) && <p className="aviso" style={{ margin: 0 }}>Gama alta: los cassettes livianos o de titanio se gastan antes. Cambia la cadena justo al 0,5 %, sin estirarla.</p>}
       {bici.union === 'pasador' && <p className="aviso" style={{ margin: 0 }}>Tu cadena va con pasador: instala un eslabón rápido para poder encerar.</p>}

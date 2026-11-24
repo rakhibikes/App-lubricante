@@ -87,13 +87,22 @@ export function criterios(p, mix, ebike = false) {
   let auto = 1 / inv
   let autoSal = 1 / invSal
   if (ebike) { auto /= 2; autoSal /= 2 }
-  let esfuerzo = (1000 / auto) * P.MIN_APP[t]
+  // Combinación Hot Melt + Super Secret (esquema de Silca): re-encerar cada REENCERAR_KM y
+  // re-aplicar Super Secret entre encerados.
+  const combo = !tipico && (p.precio_ml === 'hib' || p.precio_ml === 'hib2')
+  const cadaEncerado = P.REENCERAR_KM || 1200
+  const encPorMil = combo ? Math.min(1000 / auto, 1000 / cadaEncerado) : 0
+  const gotPorMil = combo ? Math.max(0, 1000 / auto - encPorMil) : 0
+  let esfuerzo = combo ? encPorMil * P.MIN_APP.inmersion + gotPorMil * P.MIN_APP.goteo_cera : (1000 / auto) * P.MIN_APP[t]
   for (const c of Object.keys(mix)) esfuerzo += mix[c] * (1000 / P.INT_LIMP[c]) * P.MIN_LIMP[t]
   const wMedido = !tipico && p.w !== null && p.w !== undefined
   const w = wMedido ? p.w : P.W[t]
   let costo
   let costoEstimado = false
-  if (!tipico && p.precio_ml !== null && p.precio_ml !== undefined) {
+  if (combo) {
+    const goteo = p.precio_ml === 'hib2' ? precioMl('Silca Super Secret 2.0') || precioMl('Silca Super Secret 1.0') : precioMl('Silca Super Secret 1.0')
+    costo = 6 * (encPorMil * P.CONS.inmersion * precioMl('Silca Hot Melt') + gotPorMil * P.CONS.goteo_cera * goteo)
+  } else if (!tipico && p.precio_ml !== null && p.precio_ml !== undefined) {
     costo = (6000 / auto) * costoAplicacion(p)
   } else {
     costo = nz(tipico ? null : p.costo_aud, P.COSTO[t]) * P.AUD_CLP

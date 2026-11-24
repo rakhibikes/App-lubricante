@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { NOMBRE_TIPO, NOMBRE_SEGMENTO, SEGMENTOS, PARAMS, etiquetaSolidez } from '../lib/motor.js'
+import { NOMBRE_TIPO, NOMBRE_SEGMENTO, SEGMENTOS, PARAMS, etiquetaSolidez, esCeraSilca } from '../lib/motor.js'
 import { km, clpR, n0, pct } from '../lib/formato.js'
 import { Flecha } from '../ui/iconos.jsx'
 
@@ -52,6 +52,16 @@ export default function Resultado({ perfil, resultado, saca, setSaca, onImportan
           {alternativa && <> Si prefieres todo medido, <strong>{alternativa.producto.nombre}</strong> queda con {n0(alternativa.puntaje)} puntos.</>}
         </div>
       )}
+
+      {esCeraSilca(g.producto) && !/Super Secret/.test(g.producto.nombre) && (() => {
+        const opcion = ranking.find((r) => String(r.producto.id) === '61') || ranking.find((r) => String(r.producto.id) === '15')
+        return (
+          <div className="aviso">
+            Opción para encerar menos: Silca recomienda re-aplicar Super Secret entre encerados y re-encerar cada 1.200 km.
+            {opcion && <> En tu ranking es <strong>{opcion.producto.nombre}</strong>, con {n0(opcion.puntaje)} puntos.</>}
+          </div>
+        )
+      })()}
 
       <div className="podio">
         {[s2, s3].filter(Boolean).map((r, i) => (
