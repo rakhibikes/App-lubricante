@@ -211,7 +211,6 @@ export const FORMA_LUBRICANTE = [
   { id: 'tip-goteo_cera', texto: 'Cera líquida que se seca en la cadena' },
   { id: 'tip-emulsion', texto: 'Líquido blanco o lechoso, de base agua' },
   { id: 'tip-humedo', texto: 'Aceite o lubricante seco en gotas o spray' },
-  { id: 36, texto: 'Multiuso tipo WD-40' },
 ]
 
 // Lista para el buscador de "¿Qué lubricante usas hoy?": Chile primero, luego el resto
