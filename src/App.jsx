@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState, useDeferredValue } from 'react'
 import { recomendar } from './lib/motor.js'
 import { leerLocal, guardarLocal } from './lib/almacen.js'
-import { supabase, sincronizar, leerPerfil } from './lib/supabase.js'
+import { supabase, hayCuentas, sincronizar, leerPerfil } from './lib/supabase.js'
 import { fuente, enDemo } from './lib/datos.js'
 import Nav from './ui/Nav.jsx'
 import Perfil from './pantallas/Perfil.jsx'
@@ -23,6 +23,8 @@ export default function App() {
   const [ruta, setRuta] = useState(leerRuta)
   const [perfil, setPerfil] = useState(leerLocal)
   const [usuario, setUsuario] = useState(null)
+  // Mientras se lee la sesión guardada no se muestra la pantalla de ingreso, para que no parpadee.
+  const [sesionLista, setSesionLista] = useState(!supabase)
   const [saca, setSaca] = useState(() => (leerLocal()?.sacaCadena ?? 'no_se') !== 'no')
   const [bd, setBd] = useState({ bicis: [], cadenas: [], eventos: [], carreras: [], cargado: false, cargando: false, error: '' })
 
@@ -45,7 +47,7 @@ export default function App() {
         if (remoto) { setPerfil(remoto); guardarLocal(remoto); setSaca(remoto.sacaCadena !== 'no') }
       }
     }
-    supabase.auth.getSession().then(({ data }) => alEntrar(data.session?.user ?? null))
+    supabase.auth.getSession().then(async ({ data }) => { await alEntrar(data.session?.user ?? null); setSesionLista(true) })
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setUsuario(s?.user ?? null))
     return () => sub.subscription.unsubscribe()
   }, [])
@@ -87,6 +89,12 @@ export default function App() {
     if (usuario) sincronizar(usuario, nuevo, recomendar(nuevo, { sacaCadena: s }))
     ir('resultado')
   }
+
+  // La app exige iniciar sesión con Google, para guardar el historial de cada persona y
+  // usarlo para mejorar los modelos. El modo demo (?demo) queda sin cuenta para presentaciones.
+  const exigeCuenta = hayCuentas && !enDemo()
+  if (exigeCuenta && !sesionLista) return <main className="app sin-nav"><p className="muted">Cargando…</p></main>
+  if (exigeCuenta && !usuario) return <Bienvenida obligatoria />
 
   if (ruta === 'perfil') {
     return <Perfil inicial={perfil} onListo={alTerminarPerfil} onSalir={() => ir(perfil ? 'tu' : 'inicio')} />

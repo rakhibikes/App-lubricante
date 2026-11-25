@@ -52,6 +52,8 @@ export async function leerPerfil(usuario) {
 
 export async function borrarCuenta(usuario) {
   if (!supabase || !usuario) return
+  // Las cadenas y sus registros se borran en cascada con la bicicleta.
+  for (const t of ['eventos', 'cadenas', 'bicicletas', 'carreras']) await supabase.from(t).delete().eq('user_id', usuario.id)
   await supabase.from('recomendaciones').delete().eq('user_id', usuario.id)
   await supabase.from('perfiles').delete().eq('user_id', usuario.id)
 }

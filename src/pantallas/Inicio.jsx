@@ -1,9 +1,9 @@
 import { NOMBRE_TIPO, NOMBRE_SEGMENTO } from '../lib/motor.js'
-import { hayCuentas, entrarConGoogle } from '../lib/supabase.js'
+import { entrarConGoogle } from '../lib/supabase.js'
 import { km, n0 } from '../lib/formato.js'
 import { Google, Flecha, Cadena, Bandera } from '../ui/iconos.jsx'
 
-export function Bienvenida({ onEmpezar, usuario }) {
+export function Bienvenida({ onEmpezar, obligatoria }) {
   return (
     <main className="app sin-nav" style={{ minHeight: '100dvh' }}>
       <section className="hero tx-naranja" style={{ flex: 1, minHeight: 420, padding: '22px 22px 26px' }}>
@@ -18,13 +18,16 @@ export function Bienvenida({ onEmpezar, usuario }) {
         </div>
       </section>
       <div className="col" style={{ gap: 8, paddingTop: 4 }}>
-        <button type="button" className="btn btn-primario btn-bloque" onClick={onEmpezar}>Empezar</button>
-        {hayCuentas && !usuario && (
-          <button type="button" className="btn btn-secundario btn-bloque" onClick={entrarConGoogle}><Google /> Continuar con Google</button>
+        {obligatoria ? (
+          <>
+            <button type="button" className="btn btn-primario btn-bloque" onClick={entrarConGoogle}><Google /> Continuar con Google</button>
+            <p className="peq muted" style={{ textAlign: 'center', margin: '4px 12px 0' }}>
+              Para usar la app inicia sesión con Google. Guardamos tu perfil y tus registros para seguir tu cadena en el tiempo y mejorar las recomendaciones. <a className="enlace" href="./privacidad.html">Política de privacidad</a>
+            </p>
+          </>
+        ) : (
+          <button type="button" className="btn btn-primario btn-bloque" onClick={onEmpezar}>Empezar</button>
         )}
-        <p className="peq muted" style={{ textAlign: 'center', margin: '4px 12px 0' }}>
-          {hayCuentas ? 'No necesitas cuenta. Con Google guardas tu perfil en todos tus equipos.' : 'No necesitas cuenta: tus respuestas quedan guardadas en este teléfono.'}
-        </p>
       </div>
     </main>
   )
