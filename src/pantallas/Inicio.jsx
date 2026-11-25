@@ -9,7 +9,7 @@ export function Bienvenida({ onEmpezar, usuario }) {
       <section className="hero tx-naranja" style={{ flex: 1, minHeight: 420, padding: '22px 22px 26px' }}>
         <span className="chip" style={{ alignSelf: 'flex-start' }}>Datos de 54 lubricantes · precios en Chile</span>
         <div className="col" style={{ gap: 12 }}>
-          <h1 className="grande">Encuentra tu lubricante en un minuto</h1>
+          <h1 className="grande">Encuentra el mejor lubricante para tu bicicleta</h1>
           <p style={{ fontSize: 17, maxWidth: 340 }}>Ocho preguntas sobre cómo andas y te decimos cuál protege mejor tu cadena, cada cuánto aplicarlo y cuánto ahorras.</p>
         </div>
       </section>
