@@ -4,11 +4,33 @@
 import { PARAMS, autonomiaCondicion, buscarProducto, tasa, combinacion } from './motor.js'
 
 const LN2 = Math.log(2)
+// Superficie (ruta o gravel) por clima (seco o mojado), más clima extremo.
+// La autonomía viene del ensayo de una aplicación de ZFC, que tiene tres condiciones: ruta seca,
+// gravel seco y extrema (mojado o barro). Por eso los tres casos mojados comparten autonomía; se
+// distinguen en el desgaste, que sí tiene bloques separados: húmedo (agua) y extremo (agua con barro).
+// Las claves seca, gravel y barro se mantienen para leer las carreras ya guardadas.
 export const CONDICIONES = {
-  seca: { nombre: 'Ruta seca', sal: 'ruta', bloque: { limpio: 1, polvo: 0, humedo: 0, extremo: 0 } },
-  gravel: { nombre: 'Gravel o tierra', sal: 'gravel', bloque: { limpio: 0, polvo: 1, humedo: 0, extremo: 0 } },
-  barro: { nombre: 'Barro, lluvia o arena', sal: 'extremo', bloque: { limpio: 0, polvo: 0, humedo: 0, extremo: 1 } },
+  seca: { nombre: 'Ruta seca', corto: 'Ruta seca', sal: 'ruta', bloque: { limpio: 1, polvo: 0, humedo: 0, extremo: 0 } },
+  ruta_mojada: { nombre: 'Ruta mojada', corto: 'Ruta mojada', sal: 'extremo', bloque: { limpio: 0, polvo: 0, humedo: 1, extremo: 0 } },
+  gravel: { nombre: 'Gravel o tierra seca', corto: 'Gravel seco', sal: 'gravel', bloque: { limpio: 0, polvo: 1, humedo: 0, extremo: 0 } },
+  gravel_mojado: { nombre: 'Gravel o tierra mojada', corto: 'Gravel mojado', sal: 'extremo', bloque: { limpio: 0, polvo: 0, humedo: 0.5, extremo: 0.5 } },
+  barro: { nombre: 'Clima extremo: barro, lluvia intensa o arena', corto: 'Clima extremo', sal: 'extremo', bloque: { limpio: 0, polvo: 0, humedo: 0, extremo: 1 } },
 }
+
+// Versión mojada y seca de cada condición, para cambiar el clima de toda la ruta.
+export const MOJADA = { seca: 'ruta_mojada', gravel: 'gravel_mojado' }
+export const SECA = { ruta_mojada: 'seca', gravel_mojado: 'gravel' }
+export const conClima = (cond, clima) => (clima === 'mojado' ? MOJADA[cond] || cond : SECA[cond] || cond)
+
+// Una condición desconocida (por ejemplo, de una versión futura) se lee como gravel seco.
+export const condicion = (k) => CONDICIONES[k] || CONDICIONES.gravel
+
+// Columnas de la regla de bolsillo: las condiciones con autonomía distinta.
+export const COLUMNAS_REGLA = [
+  { sal: 'ruta', nombre: 'Ruta seca' },
+  { sal: 'gravel', nombre: 'Gravel seco' },
+  { sal: 'extremo', nombre: 'Mojado o extremo' },
+]
 
 const betaL = () => PARAMS.BETA_LUB || 4
 export const Rlub = (D) => Math.exp(-LN2 * Math.pow(Math.max(0, D), betaL()))
@@ -16,7 +38,7 @@ export const Rlub = (D) => Math.exp(-LN2 * Math.pow(Math.max(0, D), betaL()))
 export const fraccionUmbral = (u = PARAMS.UMBRAL || 0.98) => Math.pow(-Math.log(u) / LN2, 1 / betaL())
 
 export const reglaDeBolsillo = (p) => Object.fromEntries(
-  Object.entries(CONDICIONES).map(([k, c]) => [k, fraccionUmbral() * autonomiaCondicion(p, c.sal)]),
+  COLUMNAS_REGLA.map((c) => [c.sal, fraccionUmbral() * autonomiaCondicion(p, c.sal)]),
 )
 
 export const NO_RECARGABLE = new Set(['inmersion', 'hibrido'])
@@ -48,7 +70,7 @@ export function simular({ tramos, modo = 'libre', controles = [], estrategia, po
   // D al recorrer [a, b) con un producto
   const exposicion = (p, a, b) => {
     let D = 0
-    for (let x = a; x < b; x += dx) D += Math.min(dx, b - x) / autonomiaCondicion(p, CONDICIONES[condicionEn(tramos, x)].sal)
+    for (let x = a; x < b; x += dx) D += Math.min(dx, b - x) / autonomiaCondicion(p, condicion(condicionEn(tramos, x)).sal)
     return D
   }
 
@@ -68,7 +90,7 @@ export function simular({ tramos, modo = 'libre', controles = [], estrategia, po
     if (recarga && x > 0) {
       let parar = false
       if (modo === 'libre') {
-        const Dsig = D + paso / autonomiaCondicion(prod, CONDICIONES[cond].sal)
+        const Dsig = D + paso / autonomiaCondicion(prod, condicion(cond).sal)
         parar = Rlub(Dsig) < umbral
       } else {
         const c = ctrl.find((k) => k >= x && k < x + paso)
@@ -85,9 +107,9 @@ export function simular({ tramos, modo = 'libre', controles = [], estrategia, po
         D = 0
       }
     }
-    D += paso / autonomiaCondicion(prod, CONDICIONES[cond].sal)
-    sinParar += paso / autonomiaCondicion(inicioReal, CONDICIONES[cond].sal)
-    desgaste += (paso * Kp * tasa(prodDesgaste, CONDICIONES[cond].bloque)) / 1000
+    D += paso / autonomiaCondicion(prod, condicion(cond).sal)
+    sinParar += paso / autonomiaCondicion(inicioReal, condicion(cond).sal)
+    desgaste += (paso * Kp * tasa(prodDesgaste, condicion(cond).bloque)) / 1000
     kmSeco += paso * (1 - Rlub(D))
     curva.push({ km: x + paso, R: Racum * Rlub(D), cond })
   }

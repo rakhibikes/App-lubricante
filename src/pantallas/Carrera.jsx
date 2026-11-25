@@ -2,14 +2,17 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { PRODUCTOS, buscarProducto, NOMBRE_TIPO, esCeraSilca, superSecretRecomendado } from '../lib/motor.js'
-import { simular, CONDICIONES, NO_RECARGABLE, reglaDeBolsillo, fraccionUmbral } from '../lib/carrera.js'
+import { simular, CONDICIONES, NO_RECARGABLE, reglaDeBolsillo, fraccionUmbral, condicion, conClima, COLUMNAS_REGLA } from '../lib/carrera.js'
 import { estadoCadena, factorPropio, medicionesDe } from '../lib/cadena.js'
 import { leerGpx } from '../lib/gpx.js'
 import { sugerirTerreno } from '../lib/terreno.js'
 import { n0, n1, pct } from '../lib/formato.js'
 import { Atras } from '../ui/iconos.jsx'
 
-const COLOR = { seca: '#E2A877', gravel: '#C46A3C', barro: '#5A2A16' }
+const COLOR = { seca: '#E2A877', ruta_mojada: '#8FB3CF', gravel: '#C46A3C', gravel_mojado: '#3E6A8A', barro: '#5A2A16' }
+const color = (k) => COLOR[k] || COLOR.gravel
+// Al cortar un tramo, el nuevo parte con la condición que más suele seguir a la actual.
+const SIGUIENTE = { seca: 'ruta_mojada', ruta_mojada: 'seca', gravel: 'gravel_mojado', gravel_mojado: 'barro', barro: 'gravel' }
 const ORIGEN = { osm: 'OpenStreetMap', inferido: 'Deducido del tipo de camino', sin_dato: 'Sin dato: revísalo', manual: 'Elegido por ti' }
 const COLOR_ESTR = ['var(--accent)', 'var(--accent-deep)', 'var(--muted)']
 const COLOR_ESTR_HEX = ['#C46A3C', '#8E3F1E', '#5B6168']
@@ -49,7 +52,7 @@ function Mapa({ puntos, tramos, paradas, controles }) {
     const limites = tramos.map((t) => { const a = acc; acc += Number(t.km) || 0; return { a, b: acc, cond: t.cond } })
     for (const lim of limites) {
       const seg = puntos.filter((p) => p[3] >= lim.a - 0.01 && p[3] <= lim.b + 0.01).map((p) => [p[0], p[1]])
-      if (seg.length > 1) L.polyline(seg, { color: COLOR[lim.cond], weight: 5, opacity: 0.95 }).addTo(g)
+      if (seg.length > 1) L.polyline(seg, { color: color(lim.cond), weight: 5, opacity: 0.95 }).addTo(g)
     }
     const enKm = (k) => puntos.reduce((m, p) => (Math.abs(p[3] - k) < Math.abs(m[3] - k) ? p : m), puntos[0])
     for (const c of controles) {
@@ -88,7 +91,7 @@ function PerfilRuta({ puntos, total, tramos, paradas, controles, onCortar }) {
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" onClick={clic} style={{ cursor: onCortar ? 'crosshair' : 'default' }}
       role="img" aria-label={`Perfil de la ruta de ${n0(total)} km con ${tramos.length} tramos. Toca para cortar un tramo.`}>
       {eles.length > 1 && <polygon points={`${x(0)},${H - pad.b - 8} ${puntos.filter((p) => p[2] !== null).map((p) => `${x(p[3])},${y(p[2])}`).join(' ')} ${x(total)},${H - pad.b - 8}`} fill="var(--pill)" stroke="var(--ring)" />}
-      {bandas.map((b, i) => <rect key={i} x={x(b.a)} y={H - pad.b - 6} width={Math.max(1, x(b.b) - x(b.a) - 1)} height="8" rx="3" fill={COLOR[b.cond]} />)}
+      {bandas.map((b, i) => <rect key={i} x={x(b.a)} y={H - pad.b - 6} width={Math.max(1, x(b.b) - x(b.a) - 1)} height="8" rx="3" fill={color(b.cond)} />)}
       {controles.map((c) => <line key={`c${c}`} x1={x(c)} x2={x(c)} y1={pad.t} y2={H - pad.b} stroke="var(--text)" strokeDasharray="2 3" />)}
       {paradas.map((s, i) => <circle key={i} cx={x(s.km)} cy={H - pad.b - 2} r="5" fill="var(--accent-deep)" stroke="var(--card)" strokeWidth="2" />)}
       <text x={pad.l} y={H - 8} fontSize="10" fill="var(--muted)">0</text>
@@ -109,7 +112,7 @@ function Curva({ sims, tramos, total }) {
   const bandas = tramos.map((t) => { const a = acc; acc += Number(t.km) || 0; return { a, b: acc, cond: t.cond } })
   return (
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={`Confiabilidad de la lubricación por km para ${sims.length} estrategias.`}>
-      {bandas.map((b, i) => <rect key={i} x={x(b.a)} y={pad.t} width={Math.max(1, x(b.b) - x(b.a))} height={H - pad.t - pad.b} fill={COLOR[b.cond]} opacity="0.12" />)}
+      {bandas.map((b, i) => <rect key={i} x={x(b.a)} y={pad.t} width={Math.max(1, x(b.b) - x(b.a))} height={H - pad.t - pad.b} fill={color(b.cond)} opacity="0.12" />)}
       {[0, 0.5, 1].map((r) => (
         <g key={r}><line x1={pad.l} x2={W - pad.r} y1={y(r)} y2={y(r)} stroke="var(--line)" /><text x={pad.l - 4} y={y(r) + 3} fontSize="10" textAnchor="end" fill="var(--muted)">{n0(r * 100)} %</text></g>
       ))}
@@ -136,6 +139,8 @@ function SelectorProducto({ id, valor, onChange, soloRecargables, vacio }) {
 export default function Carrera({ carrera, perfil, datos, bd, onGuardada, onBorrar }) {
   const [c, setC] = useState(() => ({
     nombre: '', fecha: '', tramos: [{ km: 120, cond: 'seca' }, { km: 300, cond: 'gravel' }, { km: 50, cond: 'barro' }, { km: 130, cond: 'gravel' }],
+    // El clima no se guarda: se deduce de los tramos.
+    clima: (carrera?.tramos || []).some((t) => t.cond === 'ruta_mojada' || t.cond === 'gravel_mojado') ? 'mojado' : 'seco',
     modo: 'libre', controles: [], estrategias: estrategiasIniciales(perfil), potencia: 180, velocidad: 20, ruta: null, gpx_path: null, bici_id: bd.bicis[0]?.id || null,
     ...carrera,
   }))
@@ -203,11 +208,12 @@ export default function Carrera({ carrera, perfil, datos, bd, onGuardada, onBorr
     setError('')
     try {
       const r = await sugerirTerreno(puntos, total, { alProgresar: (p) => setTerreno({ progreso: p }) })
-      if (r.tramos.length) set({ tramos: r.tramos })
+      // OpenStreetMap da la superficie; el clima lo define la persona.
+      if (r.tramos.length) set({ tramos: r.tramos.map((t) => ({ ...t, cond: conClima(t.cond, c.clima) })) })
       const { osm, inferido, sinDato, errores, primerError } = r.resumen
       if (osm + inferido < 1 && errores) throw new Error(`${primerError || 'el servidor de mapas no respondió'}. Intenta de nuevo en unos minutos`)
       if (prefijo) setAviso(prefijo.trim())
-      setAvisoTerreno(`Terreno sugerido: ${n0(osm)} km con la superficie de OpenStreetMap, ${n0(inferido)} km deducidos del tipo de camino${sinDato >= 1 ? ` y ${n0(sinDato)} km sin dato, que quedaron como gravel` : ''}${errores ? ` (algunas partes se consultaron por otra vía; detalle técnico: ${primerError})` : ''}. El barro depende del clima: márcalo tú si esperas lluvia. Revisa y cambia lo que no corresponda.`)
+      setAvisoTerreno(`Terreno sugerido: ${n0(osm)} km con la superficie de OpenStreetMap, ${n0(inferido)} km deducidos del tipo de camino${sinDato >= 1 ? ` y ${n0(sinDato)} km sin dato, que quedaron como gravel${c.clima === 'mojado' ? ' mojado' : ' seco'}` : ''}${errores ? ` (algunas partes se consultaron por otra vía; detalle técnico: ${primerError})` : ''}. El mapa no sabe si va a llover: elige el clima de la ruta y marca a mano los tramos de clima extremo. Revisa y cambia lo que no corresponda.`)
     } catch (err) {
       if (prefijo) setAviso(prefijo.trim())
       setAvisoTerreno(`No se pudo consultar OpenStreetMap (${err.message}). Marca los tramos a mano tocando el perfil.`)
@@ -221,7 +227,7 @@ export default function Carrera({ carrera, perfil, datos, bd, onGuardada, onBorr
     for (const t of c.tramos) {
       const a = acc
       acc += Number(t.km) || 0
-      if (k > a + 0.5 && k < acc - 0.5) nuevos.push({ ...t, km: +(k - a).toFixed(1) }, { km: +(acc - k).toFixed(1), cond: t.cond === 'barro' ? 'gravel' : t.cond === 'gravel' ? 'barro' : 'gravel', fuente: 'manual' })
+      if (k > a + 0.5 && k < acc - 0.5) nuevos.push({ ...t, km: +(k - a).toFixed(1) }, { km: +(acc - k).toFixed(1), cond: SIGUIENTE[t.cond] || 'gravel', fuente: 'manual' })
       else nuevos.push(t)
     }
     set({ tramos: nuevos })
@@ -297,16 +303,26 @@ export default function Carrera({ carrera, perfil, datos, bd, onGuardada, onBorr
           <PerfilRuta puntos={c.ruta.puntos} total={total} tramos={c.tramos} paradas={s0?.paradas || []} controles={c.controles} onCortar={cortar} />
         )}
         <div className="leyenda-cond peq">
-          {Object.entries(CONDICIONES).map(([k, v]) => <span key={k}><i style={{ background: COLOR[k] }} />{v.nombre}</span>)}
+          {Object.entries(CONDICIONES).map(([k, v]) => <span key={k}><i style={{ background: color(k) }} />{v.corto}</span>)}
         </div>
       </div>
 
       <div className="card col no-imprimir" style={{ gap: 10 }}>
         <div className="entre"><h2>Tramos</h2><span className={`peq ${tramosOk ? 'muted' : ''}`} style={tramosOk ? null : { color: 'var(--tint-text)' }}>{n1(sumaTramos)} de {n1(total)} km</span></div>
+        <div className="col" style={{ gap: 4 }}>
+          <span className="peq muted" id="ca-clima-t">Clima de la ruta</span>
+          <div className="chips" role="radiogroup" aria-labelledby="ca-clima-t">
+            {[['seco', 'Seco'], ['mojado', 'Mojado']].map(([k, t]) => (
+              <button key={k} type="button" role="radio" aria-checked={(c.clima || 'seco') === k} className="chip-op"
+                onClick={() => set({ clima: k, tramos: c.tramos.map((x) => ({ ...x, cond: conClima(x.cond, k) })) })}>{t}</button>
+            ))}
+          </div>
+          <span className="peq muted">Cambia todos los tramos de ruta y gravel a su versión {(c.clima || 'seco') === 'seco' ? 'mojada' : 'seca'}. Los de clima extremo no cambian; cada tramo se puede ajustar a mano.</span>
+        </div>
         {c.tramos.map((t, i) => (
           <div key={i} className="tramo-fila">
           <div className="tramo">
-            <span className="punto" style={{ background: COLOR[t.cond] }} aria-hidden="true" />
+            <span className="punto" style={{ background: color(t.cond) }} aria-hidden="true" />
             <label className="oculto" htmlFor={`t-km-${i}`}>Km del tramo {i + 1}</label>
             <input id={`t-km-${i}`} className="buscador" type="number" inputMode="decimal" min="0" step="0.1" value={t.km}
               onChange={(e) => { const tr = [...c.tramos]; tr[i] = { ...t, km: e.target.value === '' ? '' : Number(e.target.value) }; set({ tramos: tr, ...(c.ruta ? {} : {}) }) }} />
@@ -419,7 +435,7 @@ export default function Carrera({ carrera, perfil, datos, bd, onGuardada, onBorr
             <div className="card no-imprimir">
               <h2>Plan de paradas</h2>
               <ul className="resto">
-                {s0.paradas.map((p, i) => <li key={i}><span>km {n0(p.km)} · antes de {CONDICIONES[p.cond].nombre.toLowerCase()}</span><strong>{p.producto.nombre}</strong></li>)}
+                {s0.paradas.map((p, i) => <li key={i}><span>km {n0(p.km)} · antes de {condicion(p.cond).corto.toLowerCase()}</span><strong>{p.producto.nombre}</strong></li>)}
               </ul>
             </div>
           )}
@@ -429,9 +445,9 @@ export default function Carrera({ carrera, perfil, datos, bd, onGuardada, onBorr
             <p className="peq muted" style={{ margin: '0 0 6px' }}>Km entre aplicaciones para mantener 98 %.</p>
             <div style={{ overflowX: 'auto' }}>
               <table className="tabla">
-                <thead><tr><th scope="col">Producto</th><th scope="col">Seca</th><th scope="col">Gravel</th><th scope="col">Barro</th></tr></thead>
+                <thead><tr><th scope="col">Producto</th>{COLUMNAS_REGLA.map((x) => <th key={x.sal} scope="col">{x.nombre}</th>)}</tr></thead>
                 <tbody>
-                  {productosUsados.map((p) => { const r = reglaDeBolsillo(p); return <tr key={p.id}><th scope="row" style={{ color: 'var(--text)' }}>{p.nombre}</th><td>{n0(r.seca)}</td><td>{n0(r.gravel)}</td><td>{n0(r.barro)}</td></tr> })}
+                  {productosUsados.map((p) => { const r = reglaDeBolsillo(p); return <tr key={p.id}><th scope="row" style={{ color: 'var(--text)' }}>{p.nombre}</th>{COLUMNAS_REGLA.map((x) => <td key={x.sal}>{n0(r[x.sal])}</td>)}</tr> })}
                 </tbody>
               </table>
             </div>
@@ -477,17 +493,17 @@ export default function Carrera({ carrera, perfil, datos, bd, onGuardada, onBorr
           {c.ruta?.puntos?.length > 1 && <PerfilRuta puntos={c.ruta.puntos} total={total} tramos={c.tramos} paradas={s0.paradas} controles={c.controles} />}
           <h2>Paradas</h2>
           <table><thead><tr><th>Km</th><th>Producto</th><th>Tramo que viene</th></tr></thead>
-            <tbody>{s0.paradas.length ? s0.paradas.map((p, i) => <tr key={i}><td>{n0(p.km)}</td><td>{p.producto.nombre}</td><td>{CONDICIONES[p.cond].nombre}</td></tr>) : <tr><td colSpan="3">Sin paradas</td></tr>}</tbody></table>
+            <tbody>{s0.paradas.length ? s0.paradas.map((p, i) => <tr key={i}><td>{n0(p.km)}</td><td>{p.producto.nombre}</td><td>{condicion(p.cond).corto}</td></tr>) : <tr><td colSpan="3">Sin paradas</td></tr>}</tbody></table>
           <h2>Tramos</h2>
-          <table><tbody>{c.tramos.map((t, i) => <tr key={i}><td>{i + 1}</td><td>{n1(t.km)} km</td><td>{CONDICIONES[t.cond].nombre}</td></tr>)}</tbody></table>
+          <table><tbody>{c.tramos.map((t, i) => <tr key={i}><td>{i + 1}</td><td>{n1(t.km)} km</td><td>{condicion(t.cond).corto}</td></tr>)}</tbody></table>
           <h2>Regla de bolsillo (km entre aplicaciones, 98 %)</h2>
-          <table><thead><tr><th>Producto</th><th>Seca</th><th>Gravel</th><th>Barro</th></tr></thead>
-            <tbody>{productosUsados.map((p) => { const r = reglaDeBolsillo(p); return <tr key={p.id}><td>{p.nombre}</td><td>{n0(r.seca)}</td><td>{n0(r.gravel)}</td><td>{n0(r.barro)}</td></tr> })}</tbody></table>
+          <table><thead><tr><th>Producto</th>{COLUMNAS_REGLA.map((x) => <th key={x.sal}>{x.nombre}</th>)}</tr></thead>
+            <tbody>{productosUsados.map((p) => { const r = reglaDeBolsillo(p); return <tr key={p.id}><td>{p.nombre}</td>{COLUMNAS_REGLA.map((x) => <td key={x.sal}>{n0(r[x.sal])}</td>)}</tr> })}</tbody></table>
           <h2>Preparación</h2>
           <ul>
             <li>Encerar o lubricar 1 a 2 días antes de la carrera.</li>
             <li>Llevar trapo y el lubricante de respaldo ({n1(s0.ml || 0)} ml como mínimo).</li>
-            <li>En barro, re-aplicar antes si la cadena suena o se ve seca.</li>
+            <li>Con lluvia o barro, re-aplicar antes si la cadena suena o se ve seca.</li>
             {cambiarAntes && <li>Cambiar la cadena antes de largar.</li>}
           </ul>
         </section>
